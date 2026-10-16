@@ -17,24 +17,29 @@
   <p class="text-light small">請將設備條碼橫向對準藍色框框中央</p>
 
   <!-- 狀態提示列 -->
-  <div id="status-msg" class="alert alert-info py-2 small">⌛ 正在開啟相機鏡頭...</div>
+  <div id="status-msg" class="alert alert-info py-2 small">⌛ 正在尋找後置鏡頭...</div>
 
   <!-- 相機即時預覽區 -->
   <div id="reader-preview"></div>
 
-  <button class="btn btn-outline-light mt-2 px-4 fw-bold" onclick="window.close()">✕ 關閉視窗</button>
+  <!-- 💡 手動切換鏡頭與關閉按鈕 -->
+  <div class="d-flex justify-content-center gap-2 mt-2">
+    <button id="btn-switch" class="btn btn-warning fw-bold px-3" onclick="switchCamera()">🔄 手動切換鏡頭</button>
+    <button class="btn btn-outline-light fw-bold px-3" onclick="window.close()">✕ 關閉視窗</button>
+  </div>
 
   <script>
     var html5QrCode = null;
+    var currentCameraIndex = 0;
+    var cameraDevices = [];
 
     window.onload = function() {
-      startCamera();
+      initScanner();
     };
 
-    function startCamera() {
+    function initScanner() {
       var statusEl = document.getElementById('status-msg');
 
-      // 1. 設定支援 Code 128 一維條碼
       var config = {
         formatsToSupport: [
           Html5QrcodeSupportedFormats.CODE_128,
@@ -45,38 +50,85 @@
 
       html5QrCode = new Html5Qrcode("reader-preview", config);
 
-      var scanConfig = {
-        fps: 15,
-        qrbox: { width: 280, height: 120 } // 長方形框最適配 Code 128
-      };
+      // 抓取所有鏡頭設備
+      Html5Qrcode.getCameras().then(function(devices) {
+        if (devices && devices.length > 0) {
+          cameraDevices = devices;
+          
+          // 💡 iOS 關鍵突破：iOS 的後置主鏡頭通常位在陣列的「最後一個」！
+          currentCameraIndex = devices.length - 1;
 
-      // 💡 關鍵升級：直接向 iOS / Android 指定使用 "environment" (後置主鏡頭)
-      html5QrCode.start({ facingMode: "environment" }, scanConfig, onScanSuccess)
+          // 巡檢是否有明確標註 back/rear 的鏡頭關鍵字
+          for (var i = 0; i < devices.length; i++) {
+            var label = devices[i].label.toLowerCase();
+            if (label.includes('back') || label.includes('rear') || label.includes('environment') || label.includes('主相機')) {
+              currentCameraIndex = i;
+              break;
+            }
+          }
+
+          startScanWithDeviceId(cameraDevices[currentCameraIndex].id);
+        } else {
+          startScanWithFacingMode();
+        }
+      }).catch(function(err) {
+        startScanWithFacingMode();
+      });
+    }
+
+    function startScanWithDeviceId(deviceId) {
+      var statusEl = document.getElementById('status-msg');
+      var scanConfig = { fps: 15, qrbox: { width: 280, height: 120 } };
+
+      html5QrCode.start(deviceId, scanConfig, onScanSuccess)
         .then(function() {
           statusEl.className = "alert alert-success py-2 small";
-          statusEl.innerText = "🟢 後置相機已成功開啟！請將 Code 128 條碼對準中央";
+          statusEl.innerText = "🟢 鏡頭已開啟！若方向不對請按下方「🔄 手動切換鏡頭」";
         })
         .catch(function(err) {
-          // 退回機制：如果是在沒有後鏡頭的電腦筆電上測試，自動退回一般相機
-          html5QrCode.start({ facingMode: "user" }, scanConfig, onScanSuccess)
-            .then(function() {
-              statusEl.className = "alert alert-warning py-2 small";
-              statusEl.innerText = "🟡 已切換為預設相機";
-            })
-            .catch(function(e) {
-              statusEl.className = "alert alert-danger py-2 small";
-              statusEl.innerText = "❌ 無法開啟鏡頭：" + e;
-            });
+          startScanWithFacingMode();
         });
     }
 
+    function startScanWithFacingMode() {
+      var statusEl = document.getElementById('status-msg');
+      var scanConfig = { fps: 15, qrbox: { width: 280, height: 120 } };
+
+      html5QrCode.start({ facingMode: "environment" }, scanConfig, onScanSuccess)
+        .then(function() {
+          statusEl.className = "alert alert-success py-2 small";
+          statusEl.innerText = "🟢 後置鏡頭已開啟！請將 Code 128 條碼對準中央";
+        })
+        .catch(function(err) {
+          statusEl.className = "alert alert-danger py-2 small";
+          statusEl.innerText = "❌ 無法開啟鏡頭：" + err;
+        });
+    }
+
+    // 💡 靈活切換鏡頭邏輯
+    function switchCamera() {
+      if (!cameraDevices || cameraDevices.length <= 1) {
+        alert("⚠️ 系統目前僅偵測到 1 個可用的鏡頭！");
+        return;
+      }
+
+      if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().then(function() {
+          // 切換到下一個鏡頭索引
+          currentCameraIndex = (currentCameraIndex + 1) % cameraDevices.length;
+          startScanWithDeviceId(cameraDevices[currentCameraIndex].id);
+        }).catch(function(err) {
+          console.error("停止鏡頭時出錯：", err);
+        });
+      }
+    }
+
     function onScanSuccess(decodedText) {
-      // 💡 跨網域安全傳輸條碼數字給母視窗 (Admin.html)
+      // 安全傳輸結果回 GAS 母視窗
       if (window.opener) {
         window.opener.postMessage({ type: 'BARCODE_SCANNED', barcode: decodedText }, '*');
       }
 
-      // 自動關閉鏡頭與視窗
       if (html5QrCode) {
         html5QrCode.stop().then(function() { window.close(); }).catch(function() { window.close(); });
       } else {
