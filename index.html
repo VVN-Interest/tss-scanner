@@ -34,6 +34,7 @@
     function startCamera() {
       var statusEl = document.getElementById('status-msg');
 
+      // 1. 設定支援 Code 128 一維條碼
       var config = {
         formatsToSupport: [
           Html5QrcodeSupportedFormats.CODE_128,
@@ -49,44 +50,24 @@
         qrbox: { width: 280, height: 120 } // 長方形框最適配 Code 128
       };
 
-      // 自動選擇相機 (優先後置主鏡頭，若為電腦則選預設 Webcam)
-      Html5Qrcode.getCameras().then(function(devices) {
-        var selectedCameraId = (devices && devices.length > 0) ? devices[0].id : null;
-
-        if (devices && devices.length > 0) {
-          for (var i = 0; i < devices.length; i++) {
-            var label = devices[i].label.toLowerCase();
-            if (label.includes('back') || label.includes('rear') || label.includes('environment')) {
-              selectedCameraId = devices[i].id;
-              break;
-            }
-          }
-        }
-
-        var cameraConstraint = selectedCameraId ? selectedCameraId : { facingMode: "environment" };
-
-        html5QrCode.start(cameraConstraint, scanConfig, onScanSuccess)
-          .then(function() {
-            statusEl.className = "alert alert-success py-2 small";
-            statusEl.innerText = "🟢 相機已成功開啟！請將 Code 128 條碼對準中央";
-          })
-          .catch(function(err) {
-            statusEl.className = "alert alert-danger py-2 small";
-            statusEl.innerText = "⚠️ 相機啟動失敗：" + err;
-          });
-
-      }).catch(function(err) {
-        // 退回機制
-        html5QrCode.start({ facingMode: "environment" }, scanConfig, onScanSuccess)
-          .then(function() {
-            statusEl.className = "alert alert-success py-2 small";
-            statusEl.innerText = "🟢 相機已成功開啟！請將 Code 128 條碼對準中央";
-          })
-          .catch(function(e) {
-            statusEl.className = "alert alert-danger py-2 small";
-            statusEl.innerText = "❌ 無法開啟鏡頭：" + e;
-          });
-      });
+      // 💡 關鍵升級：直接向 iOS / Android 指定使用 "environment" (後置主鏡頭)
+      html5QrCode.start({ facingMode: "environment" }, scanConfig, onScanSuccess)
+        .then(function() {
+          statusEl.className = "alert alert-success py-2 small";
+          statusEl.innerText = "🟢 後置相機已成功開啟！請將 Code 128 條碼對準中央";
+        })
+        .catch(function(err) {
+          // 退回機制：如果是在沒有後鏡頭的電腦筆電上測試，自動退回一般相機
+          html5QrCode.start({ facingMode: "user" }, scanConfig, onScanSuccess)
+            .then(function() {
+              statusEl.className = "alert alert-warning py-2 small";
+              statusEl.innerText = "🟡 已切換為預設相機";
+            })
+            .catch(function(e) {
+              statusEl.className = "alert alert-danger py-2 small";
+              statusEl.innerText = "❌ 無法開啟鏡頭：" + e;
+            });
+        });
     }
 
     function onScanSuccess(decodedText) {
