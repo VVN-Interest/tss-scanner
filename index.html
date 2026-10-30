@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>📷 TSS Code 128 高清顯形掃描器</title>
+  <title>📷 TSS Code 128 高清精準掃描器</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
@@ -21,11 +21,14 @@
       min-height: 240px;
     }
     
+    /* 💡 強制邊緣銳化，防止 CSS 放大時畫面變糊 */
     #reader-preview video {
       width: 100% !important;
       height: auto !important;
       transform-origin: center center;
       transition: transform 0.2s ease-in-out;
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
     }
 
     /* 🎯 藍色極窄虛線對焦框 (44px 高度) */
@@ -54,41 +57,24 @@
       font-weight: bold;
       text-shadow: 0 1px 3px rgba(0,0,0,0.9);
     }
-
-    /* 💡 實體切片畫面顯形預覽區 */
-    #debug-preview-container {
-      margin: 10px auto;
-      max-width: 450px;
-      display: none;
-      border: 1px solid #ffc107;
-      border-radius: 8px;
-      padding: 6px;
-      background-color: #1e1e1e;
-    }
-    #debug-canvas-img {
-      width: 100%;
-      height: auto;
-      border: 1px solid #555;
-      border-radius: 4px;
-    }
   </style>
 </head>
 <body class="p-3">
 
-  <h4 class="mt-2 text-primary fw-bold">📷 Code 128 高清顯形掃描器</h4>
+  <h4 class="mt-2 text-primary fw-bold">📷 Code 128 高清精準掃描器</h4>
   <p class="text-warning small mb-2">💡 <b>LG 機身 SN 秘訣</b>：切換 <b>2.5x / 3.0x</b> 後對準藍虛線，點擊閃電解碼！</p>
 
   <!-- 狀態提示列 -->
-  <div id="status-msg" class="alert alert-info py-2 small">⌛ 正在啟動相機...</div>
+  <div id="status-msg" class="alert alert-info py-2 small">⌛ 正在啟動高清相機...</div>
 
-  <!-- 相機預覽區與對焦框 -->
+  <!-- 相機預覽區與藍虛線目標框 -->
   <div id="preview-wrapper">
     <div class="scan-target-box"></div>
     <div id="reader-preview"></div>
   </div>
 
   <!-- 🔍 倍率切換按鈕區 -->
-  <div class="mb-2">
+  <div class="mb-3">
     <span class="small me-2">🔍 畫面放大倍率：</span>
     <div class="btn-group" role="group">
       <button type="button" class="btn btn-outline-info btn-sm active" onclick="setZoom(1.0, this)">1.0x</button>
@@ -98,13 +84,7 @@
     </div>
   </div>
 
-  <!-- 💡 畫面顯形區域：顯示 Canvas 實際切下來的畫面 -->
-  <div id="debug-preview-container">
-    <div class="text-warning small mb-1 fw-bold">🖼️ 演算法當前捕捉之藍虛線切片畫面：</div>
-    <img id="debug-canvas-img" alt="切片預覽">
-  </div>
-
-  <!-- 隱藏的原生相機 input -->
+  <!-- 隱藏的原生相機 input (作為備用) -->
   <input type="file" id="qr-input-file" accept="image/*" capture="environment" style="display: none;" onchange="handleFileScan(this)">
 
   <!-- 操作按鈕區 -->
@@ -165,6 +145,7 @@
       }
     }
 
+    // 💡 關鍵設定：強制要求 HD 1080p 串流，避免相機串流模糊
     function getScanConfig() {
       return {
         fps: 15,
@@ -172,7 +153,11 @@
           var boxWidth = Math.min(Math.floor(viewfinderWidth * 0.85), 400);
           return { width: Math.max(boxWidth, 250), height: 80 };
         },
-        videoConstraints: { facingMode: "environment" }
+        videoConstraints: {
+          facingMode: "environment",
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        }
       };
     }
 
@@ -181,7 +166,7 @@
       html5QrCode.start(deviceId, getScanConfig(), onScanSuccess)
         .then(function() {
           statusEl.className = "alert alert-success py-2 small";
-          statusEl.innerText = "🟢 相機已就緒！請切換 2.5x/3.0x 將條碼對準藍虛線後點擊解碼";
+          statusEl.innerText = "🟢 高清相機已就緒！請將條碼對準藍虛線，點擊「⚡ 截取藍虛線內容解碼」";
           applyCssZoom(currentZoomLevel);
         })
         .catch(function(err) { startScanWithFacingMode(); });
@@ -192,7 +177,7 @@
       html5QrCode.start({ facingMode: "environment" }, getScanConfig(), onScanSuccess)
         .then(function() {
           statusEl.className = "alert alert-success py-2 small";
-          statusEl.innerText = "🟢 後置鏡頭已開啟！請切換 2.5x/3.0x 將條碼對準藍虛線後點擊解碼";
+          statusEl.innerText = "🟢 高清鏡頭已開啟！請將條碼對準藍虛線，點擊「⚡ 截取藍虛線內容解碼」";
           applyCssZoom(currentZoomLevel);
         })
         .catch(function(err) { showCameraError(err); });
@@ -220,7 +205,7 @@
       }
     }
 
-    // 💡 核心優化：對應藍虛線框（44px 高、90% 寬）精準 DOM 比例繪製
+    // 💡 核心演算：精準 DOM 比例繪製與裁切（無調試框靜默完成）
     function captureAndScanZoomedFrame() {
       var videoEl = document.querySelector('#reader-preview video');
       var statusEl = document.getElementById('status-msg');
@@ -231,17 +216,15 @@
       }
 
       statusEl.className = "alert alert-warning py-2 small";
-      statusEl.innerText = "⚡ 正在生成精準藍虛線切片並解析中...";
+      statusEl.innerText = "⚡ 正在高對比精準分析藍虛線區域...";
 
       var vw = videoEl.videoWidth;
       var vh = videoEl.videoHeight;
-      var displayH = videoEl.clientHeight || 280; // 取得影片在 iPad 畫面的實際高度
+      var displayH = videoEl.clientHeight || 280;
 
-      // 1. 動態計算藍虛線框 (44px 高度) 佔螢幕的真實比例
       var boxHeightRatio = 44 / displayH;
       var boxWidthRatio = 0.90;
 
-      // 2. 考慮放大倍率 calculate 裁切區域
       var cropWidth = (vw * boxWidthRatio) / currentZoomLevel;
       var cropHeight = (vh * boxHeightRatio) / currentZoomLevel;
       var cropX = (vw - cropWidth) / 2;
@@ -256,20 +239,14 @@
 
       var ctx = canvas.getContext('2d');
       
-      // 3. 注入黑白高對比濾鏡，消除黑灰色外殼雜訊
+      // 注入高對比濾鏡，自動增強黑白條碼對比度
       ctx.filter = 'grayscale(100%) contrast(220%)';
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
 
-      // 繪製切片
       ctx.drawImage(videoEl, cropX, cropY, cropWidth, cropHeight, 0, 0, targetWidth, targetHeight);
 
-      // 4. 實體顯形：呈現藍虛線精準裁切畫面
-      var dataUrl = canvas.toDataURL('image/jpeg', 0.95);
-      document.getElementById('debug-canvas-img').src = dataUrl;
-      document.getElementById('debug-preview-container').style.display = 'block';
-
-      // 5. 優先呼叫 Apple 原生相機晶片 API (BarcodeDetector)
+      // 優先調用 Apple 晶片硬體條碼偵測器
       if ('BarcodeDetector' in window) {
         var barcodeDetector = new BarcodeDetector({ formats: ['code_128', 'code_39'] });
         barcodeDetector.detect(canvas)
@@ -298,7 +275,7 @@
           })
           .catch(function(err) {
             statusEl.className = "alert alert-danger py-2 small";
-            statusEl.innerText = "❌ 辨識未成功：請查看下方黃框切片，確認條碼完整在虛線內！";
+            statusEl.innerText = "❌ 辨識未成功：請確保條碼完整對齊在藍虛線內，且對焦清晰！";
           });
       }, 'image/jpeg', 0.95);
     }
