@@ -17,22 +17,28 @@
       overflow: hidden;
       background-color: #000;
     }
+    /* 💡 關鍵修復 1：防止影像被裁切，確保條碼左右「純白留白區 (Quiet Zone)」完整可見 */
+    #reader-preview video {
+      object-fit: contain !important;
+      width: 100% !important;
+      height: auto !important;
+    }
   </style>
 </head>
 <body class="p-3">
 
-  <h4 class="mt-2 text-primary fw-bold">📷 Code 128 條碼動態掃描器</h4>
-  <p class="text-light small">已突破視窗限制！請直接將條碼置於鏡頭畫面內即可</p>
+  <h4 class="mt-2 text-primary fw-bold">📷 Code 128 長條碼專用掃描器</h4>
+  <p class="text-warning small mb-1">💡 <b>iPad 掃描秘訣</b>：請保持 <b>25 ~ 35 公分</b> 距離，確保條碼兩端白邊完整呈現</p>
 
   <!-- 狀態提示列 -->
-  <div id="status-msg" class="alert alert-info py-2 small">⌛ 正在開啟全畫面高清相機...</div>
+  <div id="status-msg" class="alert alert-info py-2 small">⌛ 正在啟動鏡頭中...</div>
 
-  <!-- 相機即時預覽區 (完全移除中間藍框限制) -->
+  <!-- 相機即時預覽區 -->
   <div id="reader-preview"></div>
 
   <!-- 操作按鈕區 -->
   <div class="d-flex justify-content-center gap-2 mt-2">
-    <button id="btn-switch" class="btn btn-warning fw-bold px-3" onclick="switchCamera()">🔄 手動切換鏡頭</button>
+    <button id="btn-switch" class="btn btn-warning fw-bold px-3" onclick="switchCamera()">🔄 切換鏡頭</button>
     <button class="btn btn-outline-light fw-bold px-3" onclick="window.close()">✕ 關閉視窗</button>
   </div>
 
@@ -53,7 +59,7 @@
           Html5QrcodeSupportedFormats.EAN_13
         ],
         experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true // 開啟晶片硬體條碼加速
+          useBarCodeDetectorIfSupported: true // 優先啟用 iOS / Android 系統內建晶片硬體條碼加速
         }
       };
 
@@ -81,10 +87,10 @@
       });
     }
 
-    // 💡 核心改良：完全不指定 qrbox 屬性，讓相機全畫面進行 Code 128 解碼
+    // 💡 關鍵修復 2：調整取樣張數 (FPS: 10)，讓 CPU 有充足時間精準演算長條碼
     function getScanConfig() {
       return {
-        fps: 20,
+        fps: 10,
         videoConstraints: {
           facingMode: "environment",
           width: { ideal: 1920 },
@@ -100,7 +106,7 @@
       html5QrCode.start(deviceId, scanConfig, onScanSuccess)
         .then(function() {
           statusEl.className = "alert alert-success py-2 small";
-          statusEl.innerText = "🟢 全畫面鏡頭已開啟！請直接將條碼移入畫面中";
+          statusEl.innerText = "🟢 高清鏡頭已就緒！請將 iPad 拿遠一點 (25~35cm) 對焦條碼";
         })
         .catch(function(err) {
           startScanWithFacingMode();
@@ -114,7 +120,7 @@
       html5QrCode.start({ facingMode: "environment" }, scanConfig, onScanSuccess)
         .then(function() {
           statusEl.className = "alert alert-success py-2 small";
-          statusEl.innerText = "🟢 後置鏡頭已開啟！請直接將條碼移入畫面中";
+          statusEl.innerText = "🟢 後置鏡頭已開啟！請保持 25~35cm 距離對焦";
         })
         .catch(function(err) {
           statusEl.className = "alert alert-danger py-2 small";
@@ -133,7 +139,7 @@
           currentCameraIndex = (currentCameraIndex + 1) % cameraDevices.length;
           startScanWithDeviceId(cameraDevices[currentCameraIndex].id);
         }).catch(function(err) {
-          console.error("停止鏡頭時出錯：", err);
+          console.error("切換鏡頭失敗：", err);
         });
       }
     }
