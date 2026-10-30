@@ -8,21 +8,29 @@
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
     body { background-color: #121212; color: #fff; text-align: center; font-family: "Microsoft JhengHei", sans-serif; }
-    #reader-preview { width: 100%; max-width: 480px; min-height: 260px; margin: 15px auto; border: 3px solid #0d6efd; border-radius: 12px; overflow: hidden; background-color: #000; }
+    #reader-preview {
+      width: 100%;
+      max-width: 450px;
+      margin: 15px auto;
+      border: 3px solid #0d6efd;
+      border-radius: 12px;
+      overflow: hidden;
+      background-color: #000;
+    }
   </style>
 </head>
 <body class="p-3">
 
   <h4 class="mt-2 text-primary fw-bold">📷 Code 128 條碼動態掃描器</h4>
-  <p class="text-light small">長條碼請保持約 15~20 公分距離，讓對焦保持清晰</p>
+  <p class="text-light small">手機直立即可！請將長條碼橫向置於長方形藍框內</p>
 
   <!-- 狀態提示列 -->
-  <div id="status-msg" class="alert alert-info py-2 small">⌛ 正在開啟高清後置鏡頭...</div>
+  <div id="status-msg" class="alert alert-info py-2 small">⌛ 正在開啟高清相機...</div>
 
   <!-- 相機即時預覽區 -->
   <div id="reader-preview"></div>
 
-  <!-- 手動切換鏡頭與關閉按鈕 -->
+  <!-- 按鈕區 -->
   <div class="d-flex justify-content-center gap-2 mt-2">
     <button id="btn-switch" class="btn btn-warning fw-bold px-3" onclick="switchCamera()">🔄 手動切換鏡頭</button>
     <button class="btn btn-outline-light fw-bold px-3" onclick="window.close()">✕ 關閉視窗</button>
@@ -38,9 +46,6 @@
     };
 
     function initScanner() {
-      var statusEl = document.getElementById('status-msg');
-
-      // 1. 設定支援 Code 128 格式 + 開啟原生晶片加速
       var config = {
         formatsToSupport: [
           Html5QrcodeSupportedFormats.CODE_128,
@@ -48,7 +53,7 @@
           Html5QrcodeSupportedFormats.EAN_13
         ],
         experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true // 💡 關鍵 1：啟用系統內建晶片硬體條碼加速
+          useBarCodeDetectorIfSupported: true // 啟用系統內建晶片硬體條碼加速
         }
       };
 
@@ -76,32 +81,32 @@
       });
     }
 
-    // 💡 關鍵 2：動態高清畫質與寬視角設定
-    function getHDScanConfig() {
+    // 💡 關鍵修復：強制死鎖扁長橫向框，並相容手機直立拿取的 HD 高畫質設定
+    function getScanConfig() {
       return {
-        fps: 20, // 提高張數提升辨識率
+        fps: 20,
         qrbox: function(viewfinderWidth, viewfinderHeight) {
-          // 動態計算：讓框框寬度占預覽區 85%，為長條碼留出足夠掃描視野
-          var boxWidth = Math.floor(viewfinderWidth * 0.85);
-          var boxHeight = Math.floor(boxWidth * 0.35); // 保持最佳橫向條碼長寬比
-          return { width: Math.max(boxWidth, 260), height: Math.max(boxHeight, 90) };
+          // 強制橫向：寬度取畫面 90% (上限 360px)，高度死鎖為 110px 扁長形
+          var boxWidth = Math.min(Math.floor(viewfinderWidth * 0.9), 360);
+          var boxHeight = 110; 
+          return { width: Math.max(boxWidth, 240), height: boxHeight };
         },
         videoConstraints: {
-          width: { min: 1280, ideal: 1920 }, // 💡 關鍵 3：強制要求的 1080p/720p HD 高清畫質
-          height: { min: 720, ideal: 1080 },
-          facingMode: "environment"
+          facingMode: "environment",
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
         }
       };
     }
 
     function startScanWithDeviceId(deviceId) {
       var statusEl = document.getElementById('status-msg');
-      var scanConfig = getHDScanConfig();
+      var scanConfig = getScanConfig();
 
       html5QrCode.start(deviceId, scanConfig, onScanSuccess)
         .then(function() {
           statusEl.className = "alert alert-success py-2 small";
-          statusEl.innerText = "🟢 高清鏡頭已開啟！請將長條碼置於中央框內";
+          statusEl.innerText = "🟢 高清鏡頭已開啟！請將長條碼橫向置於藍框內";
         })
         .catch(function(err) {
           startScanWithFacingMode();
@@ -110,12 +115,12 @@
 
     function startScanWithFacingMode() {
       var statusEl = document.getElementById('status-msg');
-      var scanConfig = getHDScanConfig();
+      var scanConfig = getScanConfig();
 
       html5QrCode.start({ facingMode: "environment" }, scanConfig, onScanSuccess)
         .then(function() {
           statusEl.className = "alert alert-success py-2 small";
-          statusEl.innerText = "🟢 後置高清鏡頭已開啟！請將長條碼置於中央框內";
+          statusEl.innerText = "🟢 後置鏡頭已開啟！請將長條碼橫向置於藍框內";
         })
         .catch(function(err) {
           statusEl.className = "alert alert-danger py-2 small";
