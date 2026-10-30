@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>📷 TSS Code 128 高清精準掃描器</title>
+  <title>📷 TSS Code 128 凍結多重演算掃描器</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
@@ -21,7 +21,6 @@
       min-height: 250px;
     }
     
-    /* 強制邊緣銳化，防止 CSS 放大時畫面發糊 */
     #reader-preview video {
       width: 100% !important;
       height: auto !important;
@@ -30,7 +29,7 @@
       image-rendering: -webkit-optimize-contrast;
     }
 
-    /* 🎯 專為微型 SN 設計的黃金對焦框 (70px 高度) */
+    /* 🎯 藍色黃金對焦框 (70px 高度) */
     .scan-target-box {
       position: absolute;
       top: 50%;
@@ -46,7 +45,7 @@
     }
 
     .scan-target-box::after {
-      content: "🎯 請將條碼放進藍虛線框內";
+      content: "🎯 請將條碼完整放進藍虛線框內";
       position: absolute;
       top: -22px;
       left: 0;
@@ -60,8 +59,8 @@
 </head>
 <body class="p-3">
 
-  <h4 class="mt-2 text-primary fw-bold">📷 Code 128 高清精準掃描器</h4>
-  <p class="text-warning small mb-2">💡 <b>LG 機身 SN 秘訣</b>：切換 <b>2.5x / 3.0x</b> 後對準藍虛線，點擊閃電解碼！</p>
+  <h4 class="mt-2 text-primary fw-bold">📷 Code 128 凍結多重演算掃描器</h4>
+  <p class="text-warning small mb-2">💡 <b>LG 機身 SN 秘訣</b>：切換 <b>2.5x / 3.0x</b> 後對準藍虛線，點擊爆破解碼！</p>
 
   <!-- 狀態提示列 -->
   <div id="status-msg" class="alert alert-info py-2 small">⌛ 正在啟動高清相機...</div>
@@ -88,7 +87,7 @@
 
   <!-- 操作按鈕區 -->
   <div class="d-grid gap-2 col-11 col-md-8 mx-auto mt-2">
-    <button class="btn btn-primary btn-lg fw-bold shadow" onclick="captureAndScanZoomedFrame()">⚡ 截取藍虛線內容解碼</button>
+    <button class="btn btn-primary btn-lg fw-bold shadow" onclick="freezeAndMultiScan()">⚡ 凍結畫面 + 多重演算法爆破解碼</button>
 
     <div class="d-flex justify-content-center gap-2 mt-1">
       <button class="btn btn-outline-success btn-sm fw-bold" onclick="triggerPhotoScan()">📸 原生拍照備用</button>
@@ -164,7 +163,7 @@
       html5QrCode.start(deviceId, getScanConfig(), onScanSuccess)
         .then(function() {
           statusEl.className = "alert alert-success py-2 small";
-          statusEl.innerText = "🟢 高清相機已就緒！請將條碼對準藍虛線，點擊「⚡ 截取藍虛線內容解碼」";
+          statusEl.innerText = "🟢 高清相機已就緒！請將條碼對準藍虛線，點擊「⚡ 凍結畫面 + 多重演算法」";
           applyCssZoom(currentZoomLevel);
         })
         .catch(function(err) { startScanWithFacingMode(); });
@@ -175,7 +174,7 @@
       html5QrCode.start({ facingMode: "environment" }, getScanConfig(), onScanSuccess)
         .then(function() {
           statusEl.className = "alert alert-success py-2 small";
-          statusEl.innerText = "🟢 高清鏡頭已開啟！請將條碼對準藍虛線，點擊「⚡ 截取藍虛線內容解碼」";
+          statusEl.innerText = "🟢 高清鏡頭已開啟！請將條碼對準藍虛線，點擊「⚡ 凍結畫面 + 多重演算法」";
           applyCssZoom(currentZoomLevel);
         })
         .catch(function(err) { showCameraError(err); });
@@ -203,8 +202,8 @@
       }
     }
 
-    // 💡 核心演算：提供充足高度 (350px) 讓 1D 解碼演算法順暢進行水平掃描
-    function captureAndScanZoomedFrame() {
+    // 💡 核心爆破演算法：擷取畫面並同步生成 3 種變體進行流水線解碼
+    function freezeAndMultiScan() {
       var videoEl = document.querySelector('#reader-preview video');
       var statusEl = document.getElementById('status-msg');
 
@@ -214,57 +213,121 @@
       }
 
       statusEl.className = "alert alert-warning py-2 small";
-      statusEl.innerText = "⚡ 正在高解析分析藍虛線區域...";
+      statusEl.innerText = "⚡ 畫面已凍結，正在進行「三重演算法爆破解碼」中...";
 
       var vw = videoEl.videoWidth;
       var vh = videoEl.videoHeight;
 
-      // 擷取中央 85% 寬度、25% 高度 (符合 70px 對焦框比例)
       var cropWidth = (vw * 0.85) / currentZoomLevel;
       var cropHeight = (vh * 0.25) / currentZoomLevel;
       var cropX = (vw - cropWidth) / 2;
       var cropY = (vh - cropHeight) / 2;
 
+      // 1. 生成 3 張不同濾鏡處理的 Canvas
+      var canvasA = createCanvasVariant(videoEl, cropX, cropY, cropWidth, cropHeight, 'none');
+      var canvasB = createCanvasVariant(videoEl, cropX, cropY, cropWidth, cropHeight, 'grayscale(100%) contrast(180%)');
+      var canvasC = createCanvasVariant(videoEl, cropX, cropY, cropWidth, cropHeight, 'threshold');
+
+      var variants = [
+        { canvas: canvasA, name: '原圖高清' },
+        { canvas: canvasB, name: '灰階高對比' },
+        { canvas: canvasC, name: '二值化極淨' }
+      ];
+
+      // 2. 啟動流水線解碼
+      processDecodePipeline(variants, 0);
+    }
+
+    // 建立 Canvas 變體輔助函式
+    function createCanvasVariant(videoEl, cx, cy, cw, ch, filterType) {
       var canvas = document.createElement('canvas');
       canvas.width = 1200;
-      canvas.height = 350; // 給予優質的 350px 縱向高度，讓掃描線輕鬆過關
-
+      canvas.height = 350;
       var ctx = canvas.getContext('2d');
+
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
 
-      ctx.drawImage(videoEl, cropX, cropY, cropWidth, cropHeight, 0, 0, 1200, 350);
+      if (filterType === 'threshold') {
+        // 先繪製原圖
+        ctx.drawImage(videoEl, cx, cy, cw, ch, 0, 0, 1200, 350);
+        // 套用自適應二值化 (Adaptive Thresholding) 處理
+        applyThresholdingFilter(ctx, 1200, 350);
+      } else {
+        if (filterType !== 'none') {
+          ctx.filter = filterType;
+        }
+        ctx.drawImage(videoEl, cx, cy, cw, ch, 0, 0, 1200, 350);
+      }
 
-      // 優先調用 Apple 晶片硬體條碼偵測器
+      return canvas;
+    }
+
+    // 將圖像轉換為黑白極淨二值化陣列
+    function applyThresholdingFilter(ctx, w, h) {
+      var imgData = ctx.getImageData(0, 0, w, h);
+      var d = imgData.data;
+      for (var i = 0; i < d.length; i += 4) {
+        var avg = (d[i] + d[i + 1] + d[i + 2]) / 3;
+        var threshold = avg > 128 ? 255 : 0;
+        d[i] = threshold;
+        d[i + 1] = threshold;
+        d[i + 2] = threshold;
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    // 順序執行流水線解碼
+    function processDecodePipeline(variants, index) {
+      if (index >= variants.length) {
+        var statusEl = document.getElementById('status-msg');
+        statusEl.className = "alert alert-danger py-2 small";
+        statusEl.innerText = "❌ 三重演算法解析未通過：請調整 2.5x/3.0x 確保條碼完整在藍虛線內！";
+        return;
+      }
+
+      var currentVariant = variants[index];
+      
+      // A. 優先嘗試 Apple 硬體晶片條碼辨識器
       if ('BarcodeDetector' in window) {
         var barcodeDetector = new BarcodeDetector({ formats: ['code_128', 'code_39'] });
-        barcodeDetector.detect(canvas)
+        barcodeDetector.detect(currentVariant.canvas)
           .then(function(barcodes) {
             if (barcodes && barcodes.length > 0) {
               onScanSuccess(barcodes[0].rawValue);
             } else {
-              fallbackScanFile(canvas);
+              tryScanWithFileEngine(currentVariant.canvas, function(success, text) {
+                if (success) {
+                  onScanSuccess(text);
+                } else {
+                  processDecodePipeline(variants, index + 1);
+                }
+              });
             }
           })
-          .catch(function(err) {
-            fallbackScanFile(canvas);
+          .catch(function() {
+            processDecodePipeline(variants, index + 1);
           });
       } else {
-        fallbackScanFile(canvas);
+        tryScanWithFileEngine(currentVariant.canvas, function(success, text) {
+          if (success) {
+            onScanSuccess(text);
+          } else {
+            processDecodePipeline(variants, index + 1);
+          }
+        });
       }
     }
 
-    function fallbackScanFile(canvas) {
-      var statusEl = document.getElementById('status-msg');
+    function tryScanWithFileEngine(canvas, callback) {
       canvas.toBlob(function(blob) {
-        var zoomedFile = new File([blob], "zoomed_frame.jpg", { type: "image/jpeg" });
-        html5QrCode.scanFile(zoomedFile, false)
+        var file = new File([blob], "pipeline_frame.jpg", { type: "image/jpeg" });
+        html5QrCode.scanFile(file, false)
           .then(function(decodedText) {
-            onScanSuccess(decodedText);
+            callback(true, decodedText);
           })
-          .catch(function(err) {
-            statusEl.className = "alert alert-danger py-2 small";
-            statusEl.innerText = "❌ 辨識未成功：請確認條碼完全涵蓋在藍虛線內！";
+          .catch(function() {
+            callback(false, null);
           });
       }, 'image/jpeg', 0.95);
     }
@@ -297,4 +360,15 @@
 
     function onScanSuccess(decodedText) {
       if (window.opener) {
-        window.opener.postMessage({ type: 'BARCODE
+        window.opener.postMessage({ type: 'BARCODE_SCANNED', barcode: decodedText }, '*');
+      }
+
+      if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().then(function() { window.close(); }).catch(function() { window.close(); });
+      } else {
+        window.close();
+      }
+    }
+  </script>
+</body>
+</html>
