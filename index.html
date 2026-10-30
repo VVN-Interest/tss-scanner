@@ -29,7 +29,7 @@
       image-rendering: -webkit-optimize-contrast;
     }
 
-    /* 🎯 藍色黃金對焦框 (70px 高度) */
+    /* 🎯 藍色黃金對焦框 */
     .scan-target-box {
       position: absolute;
       top: 50%;
@@ -59,11 +59,11 @@
 </head>
 <body class="p-3">
 
-  <h4 class="mt-2 text-primary fw-bold">📷 Code 128 雙引擎防卡死掃描器</h4>
+  <h4 class="mt-2 text-primary fw-bold">📷 Code 128 雙引擎掃描器</h4>
   <p class="text-warning small mb-2">💡 <b>LG 機身 SN 秘訣</b>：切換 <b>2.5x / 3.0x</b> 後對準藍虛線，點擊爆破解碼！</p>
 
   <!-- 狀態提示列 -->
-  <div id="status-msg" class="alert alert-info py-2 small">⌛ 正在啟動高清相機...</div>
+  <div id="status-msg" class="alert alert-info py-2 small">⌛ 正在啟動相機...</div>
 
   <!-- 相機預覽區與藍虛線目標框 -->
   <div id="preview-wrapper">
@@ -71,7 +71,7 @@
     <div id="reader-preview"></div>
   </div>
 
-  <!-- 💡 隱藏的獨立 Canvas 解碼器容器，防止與動態相機產生狀態衝突 -->
+  <!-- 隱藏的獨立 Canvas 解碼器容器 -->
   <div id="hidden-file-reader" style="display: none;"></div>
 
   <!-- 🔍 倍率切換按鈕區 -->
@@ -94,14 +94,14 @@
 
     <div class="d-flex justify-content-center gap-2 mt-1">
       <button class="btn btn-outline-success btn-sm fw-bold" onclick="triggerPhotoScan()">📸 原生拍照備用</button>
-      <button id="btn-switch" class="btn btn-warning btn-sm fw-bold" onclick="switchCamera()">🔄 切換鏡頭</button>
+      <button id="btn-switch" class="btn btn-warning btn-sm fw-bold" onclick="switchCamera()">🔄 重啟/切換鏡頭</button>
       <button class="btn btn-outline-light btn-sm fw-bold" onclick="window.close()">✕ 關閉</button>
     </div>
   </div>
 
   <script>
-    var html5QrCode = null;     // 相機專用
-    var fileScanner = null;      // Canvas 切片專用 (獨立引擎)
+    var html5QrCode = null;
+    var fileScanner = null;
     var currentCameraIndex = 0;
     var cameraDevices = [];
     var currentZoomLevel = 1.0;
@@ -121,10 +121,7 @@
           experimentalFeatures: { useBarCodeDetectorIfSupported: true }
         };
 
-        // 建立相機主引擎
         html5QrCode = new Html5Qrcode("reader-preview", config);
-        
-        // 💡 建立獨立的切片解碼引擎，徹底避開狀態衝突
         fileScanner = new Html5Qrcode("hidden-file-reader", config);
 
         Html5Qrcode.getCameras().then(function(devices) {
@@ -148,100 +145,41 @@
           startScanWithFacingMode();
         });
       } catch (e) {
-        showCameraError("初始化失敗：" + e.message);
+        showCameraError("軟體初始化失敗：" + e.message);
       }
     }
 
-    function getScanConfig() {
+    // 💡 關鍵調校：彈性降級相機設定，避免因解析度限制導致無法開機
+    function getScanConfig(isStrict) {
+      var constraints = isStrict ? {
+        facingMode: "environment",
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      } : {
+        facingMode: "environment"
+      };
+
       return {
         fps: 15,
         qrbox: function(viewfinderWidth, viewfinderHeight) {
           var boxWidth = Math.min(Math.floor(viewfinderWidth * 0.85), 400);
           return { width: Math.max(boxWidth, 250), height: 100 };
         },
-        videoConstraints: {
-          facingMode: "environment",
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        }
+        videoConstraints: constraints
       };
     }
 
     function startScanWithDeviceId(deviceId) {
       var statusEl = document.getElementById('status-msg');
-      html5QrCode.start(deviceId, getScanConfig(), onScanSuccess)
+      html5QrCode.start(deviceId, getScanConfig(true), onScanSuccess)
         .then(function() {
           statusEl.className = "alert alert-success py-2 small";
-          statusEl.innerText = "🟢 高清相機已就緒！請將條碼對準藍虛線，點擊爆破解碼";
+          statusEl.innerText = "🟢 相機已就緒！請將條碼對準藍虛線，點擊爆破解碼";
           applyCssZoom(currentZoomLevel);
         })
-        .catch(function(err) { startScanWithFacingMode(); });
-    }
-
-    function startScanWithFacingMode() {
-      var statusEl = document.getElementById('status-msg');
-      html5QrCode.start({ facingMode: "environment" }, getScanConfig(), onScanSuccess)
-        .then(function() {
-          statusEl.className = "alert alert-success py-2 small";
-          statusEl.innerText = "🟢 高清鏡頭已開啟！請將條碼對準藍虛線，點擊爆破解碼";
-          applyCssZoom(currentZoomLevel);
-        })
-        .catch(function(err) { showCameraError(err); });
-    }
-
-    function showCameraError(err) {
-      var statusEl = document.getElementById('status-msg');
-      statusEl.className = "alert alert-danger py-2 small";
-      statusEl.innerText = "❌ 相機開啟失敗：請確認 Safari 相機權限！";
-    }
-
-    function setZoom(zoomValue, btn) {
-      currentZoomLevel = zoomValue;
-      var btns = document.querySelectorAll('.btn-group .btn');
-      btns.forEach(function(b) { b.classList.remove('active'); });
-      if (btn) btn.classList.add('active');
-
-      applyCssZoom(zoomValue);
-    }
-
-    function applyCssZoom(zoomValue) {
-      var videoEl = document.querySelector('#reader-preview video');
-      if (videoEl) {
-        videoEl.style.transform = 'scale(' + zoomValue + ')';
-      }
-    }
-
-    // 💡 核心防卡死爆破演算法
-    function freezeAndMultiScan() {
-      var videoEl = document.querySelector('#reader-preview video');
-      var statusEl = document.getElementById('status-msg');
-      var btn = document.getElementById('btn-burst-decode');
-
-      if (!videoEl || videoEl.readyState !== 4 || !videoEl.videoWidth) {
-        alert("⚠️ 鏡頭尚未準備就緒，請稍等 1 秒後再試！");
-        return;
-      }
-
-      btn.disabled = true; // 防止重複連點
-      statusEl.className = "alert alert-warning py-2 small";
-      statusEl.innerText = "⚡ 正在啟動多重演算法解碼...";
-
-      // 💡 安全機制：設置 2.5 秒強行解鎖 Timer，保證絕不永久卡死！
-      clearTimeout(decodeTimeoutTimer);
-      decodeTimeoutTimer = setTimeout(function() {
-        btn.disabled = false;
-        statusEl.className = "alert alert-danger py-2 small";
-        statusEl.innerText = "❌ 辨識未通過：請微調 2.5x/3.0x 距離，確保條碼完全在藍框內！";
-      }, 2500);
-
-      try {
-        var vw = videoEl.videoWidth;
-        var vh = videoEl.videoHeight;
-
-        var cropWidth = (vw * 0.85) / currentZoomLevel;
-        var cropHeight = (vh * 0.25) / currentZoomLevel;
-        var cropX = (vw - cropWidth) / 2;
-        var cropY = (vh - cropHeight) / 2;
-
-        var canvasA = createCanvasVariant(videoEl, cropX, cropY, cropWidth, cropHeight, 'none');
-        var canvasB = createCanvasVariant(videoEl,
+        .catch(function(err) {
+          // 若嚴格模式失敗，降級嘗試標準模式
+          html5QrCode.start(deviceId, getScanConfig(false), onScanSuccess)
+            .then(function() {
+              statusEl.className = "alert alert-success py-2 small";
+              statusEl.innerText
