@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>📷 TSS Code 128 雙引擎防卡死掃描器</title>
+  <title>📷 TSS Code 128 雙引擎秒啟掃描器</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
@@ -18,7 +18,7 @@
       border-radius: 12px;
       overflow: hidden;
       background-color: #000;
-      min-height: 250px;
+      min-height: 260px;
     }
     
     #reader-preview video {
@@ -63,12 +63,17 @@
   <p class="text-warning small mb-2">💡 <b>LG 機身 SN 秘訣</b>：切換 <b>2.5x / 3.0x</b> 後對準藍虛線，點擊爆破解碼！</p>
 
   <!-- 狀態提示列 -->
-  <div id="status-msg" class="alert alert-info py-2 small">⌛ 正在啟動相機...</div>
+  <div id="status-msg" class="alert alert-info py-2 small">⌛ 正在啟動高清相機...</div>
 
   <!-- 相機預覽區與藍虛線目標框 -->
   <div id="preview-wrapper">
     <div class="scan-target-box"></div>
     <div id="reader-preview"></div>
+  </div>
+
+  <!-- 💡 3秒救援按鈕：Safari 權限凍結時點擊手動啟動 -->
+  <div id="manual-start-container" class="mb-2" style="display: none;">
+    <button class="btn btn-warning btn-sm fw-bold w-100 shadow" onclick="startDirectly()">▶️ 點擊此處手動點亮相機</button>
   </div>
 
   <!-- 隱藏的獨立 Canvas 解碼器容器 -->
@@ -94,7 +99,7 @@
 
     <div class="d-flex justify-content-center gap-2 mt-1">
       <button class="btn btn-outline-success btn-sm fw-bold" onclick="triggerPhotoScan()">📸 原生拍照備用</button>
-      <button id="btn-switch" class="btn btn-warning btn-sm fw-bold" onclick="switchCamera()">🔄 重啟/切換鏡頭</button>
+      <button id="btn-switch" class="btn btn-warning btn-sm fw-bold" onclick="startDirectly()">🔄 重啟鏡頭</button>
       <button class="btn btn-outline-light btn-sm fw-bold" onclick="window.close()">✕ 關閉</button>
     </div>
   </div>
@@ -102,12 +107,21 @@
   <script>
     var html5QrCode = null;
     var fileScanner = null;
-    var currentCameraIndex = 0;
-    var cameraDevices = [];
     var currentZoomLevel = 1.0;
+    var cameraStarted = false;
     var decodeTimeoutTimer = null;
 
     window.onload = function() {
+      // 💡 3秒監測機制：若 Safari 卡住，自動浮現手動啟動按鈕
+      setTimeout(function() {
+        if (!cameraStarted) {
+          var statusEl = document.getElementById('status-msg');
+          statusEl.className = "alert alert-warning py-2 small";
+          statusEl.innerText = "⚠️ 正在等待 Safari 鏡頭授權...";
+          document.getElementById('manual-start-container').style.display = 'block';
+        }
+      }, 3000);
+
       initScanner();
     };
 
@@ -124,62 +138,218 @@
         html5QrCode = new Html5Qrcode("reader-preview", config);
         fileScanner = new Html5Qrcode("hidden-file-reader", config);
 
-        Html5Qrcode.getCameras().then(function(devices) {
-          if (devices && devices.length > 0) {
-            cameraDevices = devices;
-            currentCameraIndex = devices.length - 1;
-
-            for (var i = 0; i < devices.length; i++) {
-              var label = devices[i].label.toLowerCase();
-              if (label.includes('back') || label.includes('rear') || label.includes('environment') || label.includes('主相機')) {
-                currentCameraIndex = i;
-                break;
-              }
-            }
-
-            startScanWithDeviceId(cameraDevices[currentCameraIndex].id);
-          } else {
-            startScanWithFacingMode();
-          }
-        }).catch(function(err) {
-          startScanWithFacingMode();
-        });
+        // 💡 避開 getCameras()，直接啟動鏡頭
+        startDirectly();
       } catch (e) {
         showCameraError("軟體初始化失敗：" + e.message);
       }
     }
 
-    // 💡 關鍵調校：彈性降級相機設定，避免因解析度限制導致無法開機
-    function getScanConfig(isStrict) {
-      var constraints = isStrict ? {
-        facingMode: "environment",
-        width: { ideal: 1920 },
-        height: { ideal: 1080 }
-      } : {
-        facingMode: "environment"
-      };
+    // 💡 核心：極速直啟後置鏡頭
+    function startDirectly() {
+      var statusEl = document.getElementById('status-msg');
+      statusEl.className = "alert alert-info py-2 small";
+      statusEl.innerText = "⌛ 正在點亮相機中...";
 
-      return {
+      var scanConfig = {
         fps: 15,
-        qrbox: function(viewfinderWidth, viewfinderHeight) {
-          var boxWidth = Math.min(Math.floor(viewfinderWidth * 0.85), 400);
+        qrbox: function(w, h) {
+          var boxWidth = Math.min(Math.floor(w * 0.85), 400);
           return { width: Math.max(boxWidth, 250), height: 100 };
         },
-        videoConstraints: constraints
+        videoConstraints: { facingMode: "environment" }
       };
-    }
 
-    function startScanWithDeviceId(deviceId) {
-      var statusEl = document.getElementById('status-msg');
-      html5QrCode.start(deviceId, getScanConfig(true), onScanSuccess)
+      html5QrCode.start({ facingMode: "environment" }, scanConfig, onScanSuccess)
         .then(function() {
+          cameraStarted = true;
+          document.getElementById('manual-start-container').style.display = 'none';
           statusEl.className = "alert alert-success py-2 small";
-          statusEl.innerText = "🟢 相機已就緒！請將條碼對準藍虛線，點擊爆破解碼";
+          statusEl.innerText = "🟢 高清相機已就緒！請將條碼對準藍虛線，點擊爆破解碼";
           applyCssZoom(currentZoomLevel);
         })
         .catch(function(err) {
-          // 若嚴格模式失敗，降級嘗試標準模式
-          html5QrCode.start(deviceId, getScanConfig(false), onScanSuccess)
-            .then(function() {
-              statusEl.className = "alert alert-success py-2 small";
-              statusEl.innerText
+          showCameraError(err);
+        });
+    }
+
+    function showCameraError(err) {
+      var statusEl = document.getElementById('status-msg');
+      statusEl.className = "alert alert-danger py-2 small";
+      statusEl.innerText = "❌ 相機開啟失敗：請檢查 Safari 設定是否允許相機權限！";
+      document.getElementById('manual-start-container').style.display = 'block';
+    }
+
+    function setZoom(zoomValue, btn) {
+      currentZoomLevel = zoomValue;
+      var btns = document.querySelectorAll('.btn-group .btn');
+      btns.forEach(function(b) { b.classList.remove('active'); });
+      if (btn) btn.classList.add('active');
+
+      applyCssZoom(zoomValue);
+    }
+
+    function applyCssZoom(zoomValue) {
+      var videoEl = document.querySelector('#reader-preview video');
+      if (videoEl) {
+        videoEl.style.transform = 'scale(' + zoomValue + ')';
+      }
+    }
+
+    function freezeAndMultiScan() {
+      var videoEl = document.querySelector('#reader-preview video');
+      var statusEl = document.getElementById('status-msg');
+      var btn = document.getElementById('btn-burst-decode');
+
+      if (!videoEl || videoEl.readyState !== 4 || !videoEl.videoWidth) {
+        alert("⚠️ 鏡頭尚未準備就緒，請點擊「重啟鏡頭」再試！");
+        return;
+      }
+
+      btn.disabled = true;
+      statusEl.className = "alert alert-warning py-2 small";
+      statusEl.innerText = "⚡ 正在啟動多重演算法解碼...";
+
+      clearTimeout(decodeTimeoutTimer);
+      decodeTimeoutTimer = setTimeout(function() {
+        btn.disabled = false;
+        statusEl.className = "alert alert-danger py-2 small";
+        statusEl.innerText = "❌ 辨識未通過：請微調 2.5x/3.0x 距離，確保條碼完全在藍框內！";
+      }, 2500);
+
+      try {
+        var vw = videoEl.videoWidth;
+        var vh = videoEl.videoHeight;
+
+        var cropWidth = (vw * 0.85) / currentZoomLevel;
+        var cropHeight = (vh * 0.25) / currentZoomLevel;
+        var cropX = (vw - cropWidth) / 2;
+        var cropY = (vh - cropHeight) / 2;
+
+        var canvasA = createCanvasVariant(videoEl, cropX, cropY, cropWidth, cropHeight, 'none');
+        var canvasB = createCanvasVariant(videoEl, cropX, cropY, cropWidth, cropHeight, 'grayscale(100%) contrast(180%)');
+
+        var variants = [canvasA, canvasB];
+        processDecodePipeline(variants, 0);
+      } catch (err) {
+        clearTimeout(decodeTimeoutTimer);
+        btn.disabled = false;
+        statusEl.className = "alert alert-danger py-2 small";
+        statusEl.innerText = "❌ 處理過程發生例外狀況：" + err.message;
+      }
+    }
+
+    function createCanvasVariant(videoEl, cx, cy, cw, ch, filterType) {
+      var canvas = document.createElement('canvas');
+      canvas.width = 1200;
+      canvas.height = 350;
+      var ctx = canvas.getContext('2d');
+
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+
+      if (filterType !== 'none') {
+        ctx.filter = filterType;
+      }
+      ctx.drawImage(videoEl, cx, cy, cw, ch, 0, 0, 1200, 350);
+      return canvas;
+    }
+
+    function processDecodePipeline(variants, index) {
+      var btn = document.getElementById('btn-burst-decode');
+
+      if (index >= variants.length) {
+        clearTimeout(decodeTimeoutTimer);
+        btn.disabled = false;
+        var statusEl = document.getElementById('status-msg');
+        statusEl.className = "alert alert-danger py-2 small";
+        statusEl.innerText = "❌ 未能成功讀取條碼：請重新調整角度與光線！";
+        return;
+      }
+
+      var currentCanvas = variants[index];
+
+      if ('BarcodeDetector' in window) {
+        var barcodeDetector = new BarcodeDetector({ formats: ['code_128', 'code_39'] });
+        barcodeDetector.detect(currentCanvas)
+          .then(function(barcodes) {
+            if (barcodes && barcodes.length > 0) {
+              clearTimeout(decodeTimeoutTimer);
+              btn.disabled = false;
+              onScanSuccess(barcodes[0].rawValue);
+            } else {
+              tryScanWithFileEngine(currentCanvas, function(success, text) {
+                if (success) {
+                  clearTimeout(decodeTimeoutTimer);
+                  btn.disabled = false;
+                  onScanSuccess(text);
+                } else {
+                  processDecodePipeline(variants, index + 1);
+                }
+              });
+            }
+          })
+          .catch(function() {
+            processDecodePipeline(variants, index + 1);
+          });
+      } else {
+        tryScanWithFileEngine(currentCanvas, function(success, text) {
+          if (success) {
+            clearTimeout(decodeTimeoutTimer);
+            btn.disabled = false;
+            onScanSuccess(text);
+          } else {
+            processDecodePipeline(variants, index + 1);
+          }
+        });
+      }
+    }
+
+    function tryScanWithFileEngine(canvas, callback) {
+      try {
+        canvas.toBlob(function(blob) {
+          if (!blob) {
+            callback(false, null);
+            return;
+          }
+          var file = new File([blob], "pipeline_frame.jpg", { type: "image/jpeg" });
+          
+          fileScanner.scanFile(file, false)
+            .then(function(decodedText) {
+              callback(true, decodedText);
+            })
+            .catch(function() {
+              callback(false, null);
+            });
+        }, 'image/jpeg', 0.95);
+      } catch (e) {
+        callback(false, null);
+      }
+    }
+
+    function triggerPhotoScan() {
+      document.getElementById('qr-input-file').click();
+    }
+
+    function handleFileScan(input) {
+      if (!input.files || input.files.length === 0) return;
+      var file = input.files[0];
+      fileScanner.scanFile(file, false)
+        .then(function(decodedText) { onScanSuccess(decodedText); })
+        .catch(function() { alert("⚠️ 照片辨識失敗，請重試！"); });
+    }
+
+    function onScanSuccess(decodedText) {
+      if (window.opener) {
+        window.opener.postMessage({ type: 'BARCODE_SCANNED', barcode: decodedText }, '*');
+      }
+
+      if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().then(function() { window.close(); }).catch(function() { window.close(); });
+      } else {
+        window.close();
+      }
+    }
+  </script>
+</body>
+</html>
