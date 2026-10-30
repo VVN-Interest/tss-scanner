@@ -18,11 +18,12 @@
       background-color: #000;
       position: relative;
     }
-    /* 防止影片裁切，確保條碼左右白邊完整 */
+    /* 防止影像裁切，並確保放大時集中在中央 */
     #reader-preview video {
       object-fit: contain !important;
       width: 100% !important;
       height: auto !important;
+      transform-origin: center center;
       transition: transform 0.2s ease-in-out;
     }
   </style>
@@ -30,7 +31,7 @@
 <body class="p-3">
 
   <h4 class="mt-2 text-primary fw-bold">📷 Code 128 微型條碼專用掃描器</h4>
-  <p class="text-warning small mb-1">💡 條碼太小？請保持 <b>20~25cm</b> 距離並點擊下方<b>放大按鈕</b></p>
+  <p class="text-warning small mb-1">💡 <b>iPad 對準 LG 密細條碼秘訣</b>：保持 25cm 距離，點擊下方 <b>2.5x / 3.0x</b> 放大</p>
 
   <!-- 狀態提示列 -->
   <div id="status-msg" class="alert alert-info py-2 small">⌛ 正在啟動高清相機...</div>
@@ -38,13 +39,14 @@
   <!-- 相機即時預覽區 -->
   <div id="reader-preview"></div>
 
-  <!-- 💡 數位放大控制區 -->
+  <!-- 💡 升級版放大控制區：加入 2.5x 與 3.0x 高倍率 -->
   <div class="mb-3">
-    <span class="small me-2">🔍 畫面倍率：</span>
+    <span class="small me-2">🔍 畫面放大倍率：</span>
     <div class="btn-group" role="group">
-      <button type="button" class="btn btn-outline-info btn-sm active" onclick="setZoom(1.0, this)">1.0x (標準)</button>
-      <button type="button" class="btn btn-outline-info btn-sm" onclick="setZoom(1.5, this)">1.5x (放大)</button>
-      <button type="button" class="btn btn-outline-info btn-sm" onclick="setZoom(2.0, this)">2.0x (微距放大)</button>
+      <button type="button" class="btn btn-outline-info btn-sm active" onclick="setZoom(1.0, this)">1.0x</button>
+      <button type="button" class="btn btn-outline-info btn-sm" onclick="setZoom(1.5, this)">1.5x</button>
+      <button type="button" class="btn btn-outline-info btn-sm" onclick="setZoom(2.5, this)">2.5x</button>
+      <button type="button" class="btn btn-outline-warning btn-sm fw-bold" onclick="setZoom(3.0, this)">3.0x (強效)</button>
     </div>
   </div>
 
@@ -72,7 +74,7 @@
           Html5QrcodeSupportedFormats.EAN_13
         ],
         experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true
+          useBarCodeDetectorIfSupported: true // 優先啟用晶片硬體條碼加速
         }
       };
 
@@ -116,7 +118,7 @@
       html5QrCode.start(deviceId, getScanConfig(), onScanSuccess)
         .then(function() {
           statusEl.className = "alert alert-success py-2 small";
-          statusEl.innerText = "🟢 相機已就緒！若條碼過小請切換 1.5x / 2.0x 放大";
+          statusEl.innerText = "🟢 相機已就緒！請保持約 25 公分距離，並選取 2.5x 或 3.0x";
           applyZoomEffect(currentZoomLevel);
         })
         .catch(function(err) {
@@ -129,7 +131,7 @@
       html5QrCode.start({ facingMode: "environment" }, getScanConfig(), onScanSuccess)
         .then(function() {
           statusEl.className = "alert alert-success py-2 small";
-          statusEl.innerText = "🟢 相機已就緒！若條碼過小請切換 1.5x / 2.0x 放大";
+          statusEl.innerText = "🟢 相機已就緒！請保持約 25 公分距離，並選取 2.5x 或 3.0x";
           applyZoomEffect(currentZoomLevel);
         })
         .catch(function(err) {
@@ -138,7 +140,7 @@
         });
     }
 
-    // 💡 放大倍率切換控制
+    // 💡 高倍率放大切換控制
     function setZoom(zoomValue, btn) {
       currentZoomLevel = zoomValue;
       
@@ -150,7 +152,7 @@
     }
 
     function applyZoomEffect(zoomValue) {
-      // 1. 嘗試調用 WebRTC 硬體光學/數位放大 (若 Safari 支援)
+      // 1. 嘗試呼叫硬體 WebRTC 光學放大
       try {
         if (html5QrCode && html5QrCode.isScanning) {
           var videoTrack = html5QrCode.getRunningTrack();
@@ -159,10 +161,10 @@
           }
         }
       } catch (e) {
-        console.log("硬體 Zoom 不受支援，改用 CSS 數位渲染放大");
+        console.log("改用 CSS 高清渲染放大");
       }
 
-      // 2. 雙重保險：萬能 CSS 視訊縮放渲染 (100% 支援所有 iOS / iPadOS Safari)
+      // 2. 萬能 CSS 視訊數位縮放 (支援全系列 iPad / iPhone Safari)
       var videoEl = document.querySelector('#reader-preview video');
       if (videoEl) {
         videoEl.style.transform = 'scale(' + zoomValue + ')';
