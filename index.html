@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>📷 TSS Code 128 精準線條掃描器</title>
+  <title>📷 TSS Code 128 畫面放大解碼掃描器</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
@@ -24,60 +24,63 @@
     #reader-preview video {
       width: 100% !important;
       height: auto !important;
+      transform-origin: center center;
+      transition: transform 0.2s ease-in-out;
     }
 
-    .scan-target-line {
+    /* 畫面上方引導框 */
+    .scan-target-box {
       position: absolute;
       top: 50%;
       left: 5%;
       width: 90%;
-      height: 40px;
-      margin-top: -20px;
-      border: 2px solid #ff3b30;
-      background-color: rgba(255, 59, 48, 0.15);
-      box-shadow: 0 0 12px rgba(255, 59, 48, 0.8);
+      height: 80px;
+      margin-top: -40px;
+      border: 2px dashed #0dcaf0;
       pointer-events: none;
       z-index: 10;
-      border-radius: 6px;
-    }
-
-    .scan-target-line::after {
-      content: "🎯 將條碼對準此紅線區域";
-      position: absolute;
-      top: -22px;
-      left: 0;
-      width: 100%;
-      font-size: 12px;
-      color: #ff3b30;
-      font-weight: bold;
-      text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(13, 202, 240, 0.5);
     }
   </style>
 </head>
 <body class="p-3">
 
-  <h4 class="mt-2 text-primary fw-bold">📷 Code 128 長條線精準辨識</h4>
-  <p class="text-warning small mb-2">💡 拍照時請將<b>條碼放正中央，涵蓋在紅線框內</b>即可！</p>
+  <h4 class="mt-2 text-primary fw-bold">📷 Code 128 畫面放大解碼器</h4>
+  <p class="text-warning small mb-2">💡 <b>LG 機身 SN 秘訣</b>：切換 <b>2.5x / 3.0x</b> 放大後，點擊<b>閃電解碼按鈕</b>！</p>
 
   <!-- 狀態提示列 -->
-  <div id="status-msg" class="alert alert-info py-2 small">⌛ 正在準備開啟相機...</div>
+  <div id="status-msg" class="alert alert-info py-2 small">⌛ 正在啟動相機...</div>
 
-  <!-- 相機預覽區與紅線圖層 -->
+  <!-- 相機預覽區與對焦框 -->
   <div id="preview-wrapper">
-    <div class="scan-target-line"></div>
+    <div class="scan-target-box"></div>
     <div id="reader-preview"></div>
   </div>
 
-  <!-- 隱藏的原生相機 input -->
+  <!-- 🔍 倍率切換按鈕區 -->
+  <div class="mb-2">
+    <span class="small me-2">🔍 畫面放大倍率：</span>
+    <div class="btn-group" role="group">
+      <button type="button" class="btn btn-outline-info btn-sm active" onclick="setZoom(1.0, this)">1.0x</button>
+      <button type="button" class="btn btn-outline-info btn-sm" onclick="setZoom(1.5, this)">1.5x</button>
+      <button type="button" class="btn btn-outline-info btn-sm" onclick="setZoom(2.5, this)">2.5x</button>
+      <button type="button" class="btn btn-outline-warning btn-sm fw-bold" onclick="setZoom(3.0, this)">3.0x</button>
+    </div>
+  </div>
+
+  <!-- 💡 隱藏的原生相機 input (作為備用) -->
   <input type="file" id="qr-input-file" accept="image/*" capture="environment" style="display: none;" onchange="handleFileScan(this)">
 
   <!-- 操作按鈕區 -->
   <div class="d-grid gap-2 col-11 col-md-8 mx-auto mt-2">
-    <button class="btn btn-danger btn-lg fw-bold shadow" onclick="triggerPhotoScan()">📸 拍照紅線裁切辨識 (強效去除雜訊)</button>
-    
+    <!-- 核心必殺技：截取目前畫面 (套用 2.5x/3.0x 放大) 並進行 Canvas 解碼 -->
+    <button class="btn btn-primary btn-lg fw-bold shadow" onclick="captureAndScanZoomedFrame()">⚡ 截取當前畫面解碼 (支援 2.5x / 3.0x 放大)</button>
+
     <div class="d-flex justify-content-center gap-2 mt-1">
-      <button id="btn-switch" class="btn btn-warning fw-bold px-3" onclick="switchCamera()">🔄 切換鏡頭</button>
-      <button class="btn btn-outline-light fw-bold px-3" onclick="window.close()">✕ 關閉視窗</button>
+      <button class="btn btn-outline-success btn-sm fw-bold" onclick="triggerPhotoScan()">📸 原生拍照備用</button>
+      <button id="btn-switch" class="btn btn-warning btn-sm fw-bold" onclick="switchCamera()">🔄 切換鏡頭</button>
+      <button class="btn btn-outline-light btn-sm fw-bold" onclick="window.close()">✕ 關閉</button>
     </div>
   </div>
 
@@ -85,6 +88,7 @@
     var html5QrCode = null;
     var currentCameraIndex = 0;
     var cameraDevices = [];
+    var currentZoomLevel = 1.0;
 
     window.onload = function() {
       initScanner();
@@ -97,9 +101,7 @@
             Html5QrcodeSupportedFormats.CODE_128,
             Html5QrcodeSupportedFormats.CODE_39
           ],
-          experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true
-          }
+          experimentalFeatures: { useBarCodeDetectorIfSupported: true }
         };
 
         html5QrCode = new Html5Qrcode("reader-preview", config);
@@ -122,11 +124,10 @@
             startScanWithFacingMode();
           }
         }).catch(function(err) {
-          console.warn("無法取得裝置列表，改用內建對向模式啟動：", err);
           startScanWithFacingMode();
         });
       } catch (e) {
-        showCameraError("套件初始化失敗：" + e.message);
+        showCameraError("初始化失敗：" + e.message);
       }
     }
 
@@ -134,8 +135,8 @@
       return {
         fps: 15,
         qrbox: function(viewfinderWidth, viewfinderHeight) {
-          var boxWidth = Math.min(Math.floor(viewfinderWidth * 0.9), 420);
-          return { width: Math.max(boxWidth, 260), height: 100 };
+          var boxWidth = Math.min(Math.floor(viewfinderWidth * 0.85), 400);
+          return { width: Math.max(boxWidth, 250), height: 120 };
         },
         videoConstraints: { facingMode: "environment" }
       };
@@ -146,11 +147,10 @@
       html5QrCode.start(deviceId, getScanConfig(), onScanSuccess)
         .then(function() {
           statusEl.className = "alert alert-success py-2 small";
-          statusEl.innerText = "🟢 請將條碼對準紅線！微型貼紙請點下方「📸 拍照紅線裁切辨識」";
+          statusEl.innerText = "🟢 相機已就緒！微型 SN 請切換 2.5x/3.0x 後點擊「⚡ 截取當前畫面解碼」";
+          applyCssZoom(currentZoomLevel);
         })
-        .catch(function(err) {
-          startScanWithFacingMode();
-        });
+        .catch(function(err) { startScanWithFacingMode(); });
     }
 
     function startScanWithFacingMode() {
@@ -158,18 +158,84 @@
       html5QrCode.start({ facingMode: "environment" }, getScanConfig(), onScanSuccess)
         .then(function() {
           statusEl.className = "alert alert-success py-2 small";
-          statusEl.innerText = "🟢 請將條碼對準紅線！微型貼紙請點下方「📸 拍照紅線裁切辨識」";
+          statusEl.innerText = "🟢 後置鏡頭已開啟！微型 SN 請切換 2.5x/3.0x 後點擊「⚡ 截取當前畫面解碼」";
+          applyCssZoom(currentZoomLevel);
         })
-        .catch(function(err) {
-          showCameraError(err);
-        });
+        .catch(function(err) { showCameraError(err); });
     }
 
     function showCameraError(err) {
       var statusEl = document.getElementById('status-msg');
       statusEl.className = "alert alert-danger py-2 small";
-      statusEl.innerText = "❌ 相機啟用失敗！請確認 Safari 權限：設定 ➔ Safari ➔ 相機 ➔ 允許";
-      alert("⚠️ 無法開啟相機鏡頭！\n\n【檢查步驟】：\n1. 請確認 iPad 的 Safari 是否已允許「相機」存取權限。\n2. 若您依然需要辨識，可以直接點擊綠色/紅色「📸 拍照辨識」按鈕！\n\n錯誤資訊：" + err);
+      statusEl.innerText = "❌ 相機開啟失敗：請確認 Safari 相機權限已開啟！";
+    }
+
+    // 💡 切換預覽倍率
+    function setZoom(zoomValue, btn) {
+      currentZoomLevel = zoomValue;
+      var btns = document.querySelectorAll('.btn-group .btn');
+      btns.forEach(function(b) { b.classList.remove('active'); });
+      if (btn) btn.classList.add('active');
+
+      applyCssZoom(zoomValue);
+    }
+
+    function applyCssZoom(zoomValue) {
+      var videoEl = document.querySelector('#reader-preview video');
+      if (videoEl) {
+        videoEl.style.transform = 'scale(' + zoomValue + ')';
+      }
+    }
+
+    // 💡 核心魔術：將當前鏡頭畫面繪製到 Canvas 並進行 2.5x/3.0x 實質切片放大與解碼！
+    function captureAndScanZoomedFrame() {
+      var videoEl = document.querySelector('#reader-preview video');
+      if (!videoEl || videoEl.readyState !== 4) {
+        alert("⚠️ 鏡頭尚未準備就緒，請稍後再試！");
+        return;
+      }
+
+      var statusEl = document.getElementById('status-msg');
+      statusEl.className = "alert alert-warning py-2 small";
+      statusEl.innerText = "⚡ 正在繪製並分析 " + currentZoomLevel + "x 放大畫面...";
+
+      var vw = videoEl.videoWidth;
+      var vh = videoEl.videoHeight;
+
+      // 1. 根據當前的 currentZoomLevel，計算影片中央要裁切的區域大小
+      var cropWidth = vw / currentZoomLevel;
+      var cropHeight = vh / currentZoomLevel;
+      var cropX = (vw - cropWidth) / 2;
+      var cropY = (vh - cropHeight) / 2;
+
+      // 2. 建立 Canvas，將裁切區域繪製並放大至 1200px 高清解析度
+      var canvas = document.createElement('canvas');
+      var targetWidth = 1200;
+      var targetHeight = Math.round(targetWidth * (cropHeight / cropWidth));
+
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+
+      var ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+
+      // 繪製：將影片中央 1/Zoom 區域繪製拉大滿滿至 Canvas
+      ctx.drawImage(videoEl, cropX, cropY, cropWidth, cropHeight, 0, 0, targetWidth, targetHeight);
+
+      // 3. 將 Canvas 轉為圖片檔案，送入解碼引擎！
+      canvas.toBlob(function(blob) {
+        var zoomedFile = new File([blob], "zoomed_frame.jpg", { type: "image/jpeg" });
+
+        html5QrCode.scanFile(zoomedFile, false)
+          .then(function(decodedText) {
+            onScanSuccess(decodedText);
+          })
+          .catch(function(err) {
+            statusEl.className = "alert alert-danger py-2 small";
+            statusEl.innerText = "❌ 放大辨識失敗：請確保條碼位於畫面正中央且清晰！";
+          });
+      }, 'image/jpeg', 0.92);
     }
 
     function switchCamera() {
@@ -182,8 +248,6 @@
         html5QrCode.stop().then(function() {
           currentCameraIndex = (currentCameraIndex + 1) % cameraDevices.length;
           startScanWithDeviceId(cameraDevices[currentCameraIndex].id);
-        }).catch(function(err) {
-          console.error("切換鏡頭失敗：", err);
         });
       }
     }
@@ -194,69 +258,10 @@
 
     function handleFileScan(input) {
       if (!input.files || input.files.length === 0) return;
-
-      var statusEl = document.getElementById('status-msg');
-      statusEl.className = "alert alert-warning py-2 small";
-      statusEl.innerText = "✂️ 正在進行紅線區域精準裁切與辨識...";
-
       var file = input.files[0];
-
-      cropToHorizontalLineROI(file, function(croppedBlob) {
-        var croppedFile = new File([croppedBlob], "roi_strip.jpg", { type: "image/jpeg" });
-
-        html5QrCode.scanFile(croppedFile, false)
-          .then(function(decodedText) {
-            onScanSuccess(decodedText);
-          })
-          .catch(function(err) {
-            html5QrCode.scanFile(file, false)
-              .then(function(fullDecodedText) {
-                onScanSuccess(fullDecodedText);
-              })
-              .catch(function(fullErr) {
-                statusEl.className = "alert alert-danger py-2 small";
-                statusEl.innerText = "❌ 辨識失敗：請確保照片對焦清晰，且條碼完整涵蓋在中央紅線內！";
-                alert("⚠️ 請將條碼放在照片正中央對準紅線位置重新拍攝！");
-              });
-          });
-      });
-    }
-
-    function cropToHorizontalLineROI(file, callback) {
-      var reader = new FileReader();
-      reader.onload = function(e) {
-        var img = new Image();
-        img.onload = function() {
-          var canvas = document.createElement('canvas');
-          var ctx = canvas.getContext('2d');
-
-          var cropWidth = Math.round(img.width * 0.90);
-          var cropHeight = Math.round(img.height * 0.22);
-          var cropX = Math.round((img.width - cropWidth) / 2);
-          var cropY = Math.round((img.height - cropHeight) / 2);
-
-          var outputWidth = cropWidth;
-          var outputHeight = cropHeight;
-          if (outputWidth > 1400) {
-            outputHeight = Math.round(outputHeight * (1400 / outputWidth));
-            outputWidth = 1400;
-          }
-
-          canvas.width = outputWidth;
-          canvas.height = outputHeight;
-
-          ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = 'high';
-
-          ctx.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, outputWidth, outputHeight);
-
-          canvas.toBlob(function(blob) {
-            callback(blob);
-          }, 'image/jpeg', 0.92);
-        };
-        img.src = e.target.result;
-      };
-      reader.readAsDataURL(file);
+      html5QrCode.scanFile(file, false)
+        .then(function(decodedText) { onScanSuccess(decodedText); })
+        .catch(function() { alert("⚠️ 照片辨識失敗，請重試！"); });
     }
 
     function onScanSuccess(decodedText) {
