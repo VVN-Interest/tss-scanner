@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>📷 TSS Code 128 微型 SN 專用掃描器</title>
+  <title>📷 TSS Code 128 高清顯形掃描器</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
@@ -18,7 +18,7 @@
       border-radius: 12px;
       overflow: hidden;
       background-color: #000;
-      min-height: 250px;
+      min-height: 240px;
     }
     
     #reader-preview video {
@@ -28,23 +28,23 @@
       transition: transform 0.2s ease-in-out;
     }
 
-    /* 🎯 專為微型 SN 設計的極窄扁長目標框 (45px 高度) */
+    /* 🎯 藍色極窄目標對焦框 */
     .scan-target-box {
       position: absolute;
       top: 50%;
-      left: 7.5%;
-      width: 85%;
-      height: 45px;
-      margin-top: -22px;
+      left: 5%;
+      width: 90%;
+      height: 40px;
+      margin-top: -20px;
       border: 2.5px dashed #0dcaf0;
       pointer-events: none;
       z-index: 10;
       border-radius: 6px;
-      box-shadow: 0 0 12px rgba(13, 202, 240, 0.7);
+      box-shadow: 0 0 12px rgba(13, 202, 240, 0.8);
     }
 
     .scan-target-box::after {
-      content: "🎯 請將條碼精準對齊此窄框內";
+      content: "🎯 請將微型 SN 條碼對準此窄框";
       position: absolute;
       top: -22px;
       left: 0;
@@ -54,17 +54,34 @@
       font-weight: bold;
       text-shadow: 0 1px 3px rgba(0,0,0,0.9);
     }
+
+    /* 💡 實體切片畫面顯形預覽區 */
+    #debug-preview-container {
+      margin: 10px auto;
+      max-width: 450px;
+      display: none;
+      border: 1px solid #ffc107;
+      border-radius: 8px;
+      padding: 6px;
+      background-color: #1e1e1e;
+    }
+    #debug-canvas-img {
+      width: 100%;
+      height: auto;
+      border: 1px solid #555;
+      border-radius: 4px;
+    }
   </style>
 </head>
 <body class="p-3">
 
-  <h4 class="mt-2 text-primary fw-bold">📷 Code 128 微型條碼解碼器</h4>
-  <p class="text-warning small mb-2">💡 <b>LG 機身 SN 秘訣</b>：切換 <b>2.5x / 3.0x</b> 放大後，將條碼放進<b>藍色虛線窄框</b>內！</p>
+  <h4 class="mt-2 text-primary fw-bold">📷 Code 128 高清顯形掃描器</h4>
+  <p class="text-warning small mb-2">💡 <b>LG 機身 SN 秘訣</b>：切換 <b>2.5x / 3.0x</b> 後對準窄框，點擊閃電解碼！</p>
 
   <!-- 狀態提示列 -->
   <div id="status-msg" class="alert alert-info py-2 small">⌛ 正在啟動相機...</div>
 
-  <!-- 相機預覽區與極窄目標框 -->
+  <!-- 相機預覽區與對焦框 -->
   <div id="preview-wrapper">
     <div class="scan-target-box"></div>
     <div id="reader-preview"></div>
@@ -81,12 +98,17 @@
     </div>
   </div>
 
-  <!-- 隱藏的原生相機 input (作為備用) -->
+  <!-- 💡 畫面顯形區域：顯示 Canvas 實際切下來的畫面 -->
+  <div id="debug-preview-container">
+    <div class="text-warning small mb-1 fw-bold">🖼️ 演算法當前捕捉之高對比切片畫面：</div>
+    <img id="debug-canvas-img" alt="切片預覽">
+  </div>
+
+  <!-- 隱藏的原生相機 input -->
   <input type="file" id="qr-input-file" accept="image/*" capture="environment" style="display: none;" onchange="handleFileScan(this)">
 
   <!-- 操作按鈕區 -->
   <div class="d-grid gap-2 col-11 col-md-8 mx-auto mt-2">
-    <!-- 核心必殺技：截取藍色窄框區域進行精準放大解碼 -->
     <button class="btn btn-primary btn-lg fw-bold shadow" onclick="captureAndScanZoomedFrame()">⚡ 截取窄框內容解碼</button>
 
     <div class="d-flex justify-content-center gap-2 mt-1">
@@ -159,7 +181,7 @@
       html5QrCode.start(deviceId, getScanConfig(), onScanSuccess)
         .then(function() {
           statusEl.className = "alert alert-success py-2 small";
-          statusEl.innerText = "🟢 相機已就緒！請切換 2.5x/3.0x 將條碼對準藍色窄框，點擊「⚡ 截取窄框內容解碼」";
+          statusEl.innerText = "🟢 相機已就緒！請切換 2.5x/3.0x 將條碼對準藍框後點擊解碼";
           applyCssZoom(currentZoomLevel);
         })
         .catch(function(err) { startScanWithFacingMode(); });
@@ -170,7 +192,7 @@
       html5QrCode.start({ facingMode: "environment" }, getScanConfig(), onScanSuccess)
         .then(function() {
           statusEl.className = "alert alert-success py-2 small";
-          statusEl.innerText = "🟢 相機已就緒！請切換 2.5x/3.0x 將條碼對準藍色窄框，點擊「⚡ 截取窄框內容解碼」";
+          statusEl.innerText = "🟢 後置鏡頭已開啟！請切換 2.5x/3.0x 將條碼對準藍框後點擊解碼";
           applyCssZoom(currentZoomLevel);
         })
         .catch(function(err) { showCameraError(err); });
@@ -179,7 +201,7 @@
     function showCameraError(err) {
       var statusEl = document.getElementById('status-msg');
       statusEl.className = "alert alert-danger py-2 small";
-      statusEl.innerText = "❌ 相機開啟失敗：請確認 Safari 相機權限已開啟！";
+      statusEl.innerText = "❌ 相機開啟失敗：請確認 Safari 相機權限！";
     }
 
     function setZoom(zoomValue, btn) {
@@ -198,51 +220,81 @@
       }
     }
 
-    // 💡 核心演算：嚴格只截取藍色虛線窄框涵蓋的極淨區域 (中央 85% 寬度、12% 高度)
+    // 💡 核心必殺技：繪製高對比 Canvas 切片 + 顯形預覽 + Apple 原生條碼引擎雙重辨識
     function captureAndScanZoomedFrame() {
       var videoEl = document.querySelector('#reader-preview video');
-      if (!videoEl || videoEl.readyState !== 4) {
-        alert("⚠️ 鏡頭尚未準備就緒，請稍後再試！");
+      var statusEl = document.getElementById('status-msg');
+
+      if (!videoEl || videoEl.readyState !== 4 || !videoEl.videoWidth) {
+        alert("⚠️ 鏡頭尚未準備就緒，請稍等 1 秒後再試！");
         return;
       }
 
-      var statusEl = document.getElementById('status-msg');
       statusEl.className = "alert alert-warning py-2 small";
-      statusEl.innerText = "⚡ 正在分析藍色窄框內的條碼 (套用 " + currentZoomLevel + "x 放大)...";
+      statusEl.innerText = "⚡ 正在生成高對比切片並調用硬體晶片辨識中...";
 
       var vw = videoEl.videoWidth;
       var vh = videoEl.videoHeight;
 
-      // 嚴格對應 UI 窄框：寬度取 85%，高度鎖定在極窄的 12%
-      var cropWidth = (vw * 0.85) / currentZoomLevel;
-      var cropHeight = (vh * 0.12) / currentZoomLevel; 
+      // 1. 計算切片區域 (取中央 90% 寬度、14% 高度)
+      var cropWidth = (vw * 0.90) / currentZoomLevel;
+      var cropHeight = (vh * 0.14) / currentZoomLevel;
       var cropX = (vw - cropWidth) / 2;
       var cropY = (vh - cropHeight) / 2;
 
       var canvas = document.createElement('canvas');
       var targetWidth = 1200;
-      var targetHeight = Math.max(120, Math.round(targetWidth * (cropHeight / cropWidth)));
+      var targetHeight = Math.max(140, Math.round(targetWidth * (cropHeight / cropWidth)));
 
       canvas.width = targetWidth;
       canvas.height = targetHeight;
 
       var ctx = canvas.getContext('2d');
+      
+      // 2. 注入黑白高對比濾鏡，消除灰色外殼雜訊
+      ctx.filter = 'grayscale(100%) contrast(220%)';
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
 
-      // 繪製：將影片中央窄框區域拉大繪製至 Canvas
+      // 繪製切片
       ctx.drawImage(videoEl, cropX, cropY, cropWidth, cropHeight, 0, 0, targetWidth, targetHeight);
 
-      canvas.toBlob(function(blob) {
-        var zoomedFile = new File([blob], "narrow_zoomed_frame.jpg", { type: "image/jpeg" });
+      // 3. 實體顯形：把 Canvas 畫面秀給使用者看，確認條碼有被切進去
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      document.getElementById('debug-canvas-img').src = dataUrl;
+      document.getElementById('debug-preview-container').style.display = 'block';
 
+      // 4. 優先呼叫 Apple 原生相機晶片 API (BarcodeDetector)
+      if ('BarcodeDetector' in window) {
+        var barcodeDetector = new BarcodeDetector({ formats: ['code_128', 'code_39'] });
+        barcodeDetector.detect(canvas)
+          .then(function(barcodes) {
+            if (barcodes && barcodes.length > 0) {
+              onScanSuccess(barcodes[0].rawValue);
+            } else {
+              fallbackScanFile(canvas);
+            }
+          })
+          .catch(function(err) {
+            fallbackScanFile(canvas);
+          });
+      } else {
+        fallbackScanFile(canvas);
+      }
+    }
+
+    // JS 套件備用備援
+    function fallbackScanFile(canvas) {
+      var statusEl = document.getElementById('status-msg');
+      canvas.toBlob(function(blob) {
+        var zoomedFile = new File([blob], "zoomed_frame.jpg", { type: "image/jpeg" });
         html5QrCode.scanFile(zoomedFile, false)
           .then(function(decodedText) {
             onScanSuccess(decodedText);
           })
           .catch(function(err) {
             statusEl.className = "alert alert-danger py-2 small";
-            statusEl.innerText = "❌ 辨識失敗：請確保 LG 條碼完全被包覆在藍色虛線窄框內！";
+            statusEl.innerText = "❌ 辨識未成功：請檢查下方黃框影像，確保條碼完整且無晃動！";
           });
       }, 'image/jpeg', 0.95);
     }
