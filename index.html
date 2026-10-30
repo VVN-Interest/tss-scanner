@@ -14,15 +14,15 @@
 <body class="p-3">
 
   <h4 class="mt-2 text-primary fw-bold">📷 Code 128 條碼動態掃描器</h4>
-  <p class="text-light small">請將設備條碼橫向對準藍色框框中央</p>
+  <p class="text-light small">長條碼請保持約 15~20 公分距離，讓對焦保持清晰</p>
 
   <!-- 狀態提示列 -->
-  <div id="status-msg" class="alert alert-info py-2 small">⌛ 正在尋找後置鏡頭...</div>
+  <div id="status-msg" class="alert alert-info py-2 small">⌛ 正在開啟高清後置鏡頭...</div>
 
   <!-- 相機即時預覽區 -->
   <div id="reader-preview"></div>
 
-  <!-- 💡 手動切換鏡頭與關閉按鈕 -->
+  <!-- 手動切換鏡頭與關閉按鈕 -->
   <div class="d-flex justify-content-center gap-2 mt-2">
     <button id="btn-switch" class="btn btn-warning fw-bold px-3" onclick="switchCamera()">🔄 手動切換鏡頭</button>
     <button class="btn btn-outline-light fw-bold px-3" onclick="window.close()">✕ 關閉視窗</button>
@@ -40,25 +40,25 @@
     function initScanner() {
       var statusEl = document.getElementById('status-msg');
 
+      // 1. 設定支援 Code 128 格式 + 開啟原生晶片加速
       var config = {
         formatsToSupport: [
           Html5QrcodeSupportedFormats.CODE_128,
           Html5QrcodeSupportedFormats.CODE_39,
           Html5QrcodeSupportedFormats.EAN_13
-        ]
+        ],
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: true // 💡 關鍵 1：啟用系統內建晶片硬體條碼加速
+        }
       };
 
       html5QrCode = new Html5Qrcode("reader-preview", config);
 
-      // 抓取所有鏡頭設備
       Html5Qrcode.getCameras().then(function(devices) {
         if (devices && devices.length > 0) {
           cameraDevices = devices;
-          
-          // 💡 iOS 關鍵突破：iOS 的後置主鏡頭通常位在陣列的「最後一個」！
           currentCameraIndex = devices.length - 1;
 
-          // 巡檢是否有明確標註 back/rear 的鏡頭關鍵字
           for (var i = 0; i < devices.length; i++) {
             var label = devices[i].label.toLowerCase();
             if (label.includes('back') || label.includes('rear') || label.includes('environment') || label.includes('主相機')) {
@@ -76,14 +76,32 @@
       });
     }
 
+    // 💡 關鍵 2：動態高清畫質與寬視角設定
+    function getHDScanConfig() {
+      return {
+        fps: 20, // 提高張數提升辨識率
+        qrbox: function(viewfinderWidth, viewfinderHeight) {
+          // 動態計算：讓框框寬度占預覽區 85%，為長條碼留出足夠掃描視野
+          var boxWidth = Math.floor(viewfinderWidth * 0.85);
+          var boxHeight = Math.floor(boxWidth * 0.35); // 保持最佳橫向條碼長寬比
+          return { width: Math.max(boxWidth, 260), height: Math.max(boxHeight, 90) };
+        },
+        videoConstraints: {
+          width: { min: 1280, ideal: 1920 }, // 💡 關鍵 3：強制要求的 1080p/720p HD 高清畫質
+          height: { min: 720, ideal: 1080 },
+          facingMode: "environment"
+        }
+      };
+    }
+
     function startScanWithDeviceId(deviceId) {
       var statusEl = document.getElementById('status-msg');
-      var scanConfig = { fps: 15, qrbox: { width: 280, height: 120 } };
+      var scanConfig = getHDScanConfig();
 
       html5QrCode.start(deviceId, scanConfig, onScanSuccess)
         .then(function() {
           statusEl.className = "alert alert-success py-2 small";
-          statusEl.innerText = "🟢 鏡頭已開啟！若方向不對請按下方「🔄 手動切換鏡頭」";
+          statusEl.innerText = "🟢 高清鏡頭已開啟！請將長條碼置於中央框內";
         })
         .catch(function(err) {
           startScanWithFacingMode();
@@ -92,12 +110,12 @@
 
     function startScanWithFacingMode() {
       var statusEl = document.getElementById('status-msg');
-      var scanConfig = { fps: 15, qrbox: { width: 280, height: 120 } };
+      var scanConfig = getHDScanConfig();
 
       html5QrCode.start({ facingMode: "environment" }, scanConfig, onScanSuccess)
         .then(function() {
           statusEl.className = "alert alert-success py-2 small";
-          statusEl.innerText = "🟢 後置鏡頭已開啟！請將 Code 128 條碼對準中央";
+          statusEl.innerText = "🟢 後置高清鏡頭已開啟！請將長條碼置於中央框內";
         })
         .catch(function(err) {
           statusEl.className = "alert alert-danger py-2 small";
@@ -105,7 +123,6 @@
         });
     }
 
-    // 💡 靈活切換鏡頭邏輯
     function switchCamera() {
       if (!cameraDevices || cameraDevices.length <= 1) {
         alert("⚠️ 系統目前僅偵測到 1 個可用的鏡頭！");
@@ -114,7 +131,6 @@
 
       if (html5QrCode && html5QrCode.isScanning) {
         html5QrCode.stop().then(function() {
-          // 切換到下一個鏡頭索引
           currentCameraIndex = (currentCameraIndex + 1) % cameraDevices.length;
           startScanWithDeviceId(cameraDevices[currentCameraIndex].id);
         }).catch(function(err) {
@@ -124,7 +140,6 @@
     }
 
     function onScanSuccess(decodedText) {
-      // 安全傳輸結果回 GAS 母視窗
       if (window.opener) {
         window.opener.postMessage({ type: 'BARCODE_SCANNED', barcode: decodedText }, '*');
       }
