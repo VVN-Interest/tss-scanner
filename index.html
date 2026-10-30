@@ -18,36 +18,35 @@
       border-radius: 12px;
       overflow: hidden;
       background-color: #000;
-      min-height: 240px;
+      min-height: 250px;
     }
     
-    /* 💡 強制邊緣銳化，防止 CSS 放大時畫面變糊 */
+    /* 強制邊緣銳化，防止 CSS 放大時畫面發糊 */
     #reader-preview video {
       width: 100% !important;
       height: auto !important;
       transform-origin: center center;
       transition: transform 0.2s ease-in-out;
       image-rendering: -webkit-optimize-contrast;
-      image-rendering: crisp-edges;
     }
 
-    /* 🎯 藍色極窄虛線對焦框 (44px 高度) */
+    /* 🎯 專為微型 SN 設計的黃金對焦框 (70px 高度) */
     .scan-target-box {
       position: absolute;
       top: 50%;
       left: 5%;
       width: 90%;
-      height: 44px;
-      margin-top: -22px;
+      height: 70px;
+      margin-top: -35px;
       border: 2.5px dashed #0dcaf0;
       pointer-events: none;
       z-index: 10;
-      border-radius: 6px;
+      border-radius: 8px;
       box-shadow: 0 0 12px rgba(13, 202, 240, 0.8);
     }
 
     .scan-target-box::after {
-      content: "🎯 請將條碼完整放進藍虛線內";
+      content: "🎯 請將條碼放進藍虛線框內";
       position: absolute;
       top: -22px;
       left: 0;
@@ -84,7 +83,7 @@
     </div>
   </div>
 
-  <!-- 隱藏的原生相機 input (作為備用) -->
+  <!-- 隱藏的原生相機 input (備用) -->
   <input type="file" id="qr-input-file" accept="image/*" capture="environment" style="display: none;" onchange="handleFileScan(this)">
 
   <!-- 操作按鈕區 -->
@@ -145,13 +144,12 @@
       }
     }
 
-    // 💡 關鍵設定：強制要求 HD 1080p 串流，避免相機串流模糊
     function getScanConfig() {
       return {
         fps: 15,
         qrbox: function(viewfinderWidth, viewfinderHeight) {
           var boxWidth = Math.min(Math.floor(viewfinderWidth * 0.85), 400);
-          return { width: Math.max(boxWidth, 250), height: 80 };
+          return { width: Math.max(boxWidth, 250), height: 100 };
         },
         videoConstraints: {
           facingMode: "environment",
@@ -205,7 +203,7 @@
       }
     }
 
-    // 💡 核心演算：精準 DOM 比例繪製與裁切（無調試框靜默完成）
+    // 💡 核心演算：提供充足高度 (350px) 讓 1D 解碼演算法順暢進行水平掃描
     function captureAndScanZoomedFrame() {
       var videoEl = document.querySelector('#reader-preview video');
       var statusEl = document.getElementById('status-msg');
@@ -216,35 +214,26 @@
       }
 
       statusEl.className = "alert alert-warning py-2 small";
-      statusEl.innerText = "⚡ 正在高對比精準分析藍虛線區域...";
+      statusEl.innerText = "⚡ 正在高解析分析藍虛線區域...";
 
       var vw = videoEl.videoWidth;
       var vh = videoEl.videoHeight;
-      var displayH = videoEl.clientHeight || 280;
 
-      var boxHeightRatio = 44 / displayH;
-      var boxWidthRatio = 0.90;
-
-      var cropWidth = (vw * boxWidthRatio) / currentZoomLevel;
-      var cropHeight = (vh * boxHeightRatio) / currentZoomLevel;
+      // 擷取中央 85% 寬度、25% 高度 (符合 70px 對焦框比例)
+      var cropWidth = (vw * 0.85) / currentZoomLevel;
+      var cropHeight = (vh * 0.25) / currentZoomLevel;
       var cropX = (vw - cropWidth) / 2;
       var cropY = (vh - cropHeight) / 2;
 
       var canvas = document.createElement('canvas');
-      var targetWidth = 1200;
-      var targetHeight = Math.max(120, Math.round(targetWidth * (cropHeight / cropWidth)));
-
-      canvas.width = targetWidth;
-      canvas.height = targetHeight;
+      canvas.width = 1200;
+      canvas.height = 350; // 給予優質的 350px 縱向高度，讓掃描線輕鬆過關
 
       var ctx = canvas.getContext('2d');
-      
-      // 注入高對比濾鏡，自動增強黑白條碼對比度
-      ctx.filter = 'grayscale(100%) contrast(220%)';
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
 
-      ctx.drawImage(videoEl, cropX, cropY, cropWidth, cropHeight, 0, 0, targetWidth, targetHeight);
+      ctx.drawImage(videoEl, cropX, cropY, cropWidth, cropHeight, 0, 0, 1200, 350);
 
       // 優先調用 Apple 晶片硬體條碼偵測器
       if ('BarcodeDetector' in window) {
@@ -275,7 +264,7 @@
           })
           .catch(function(err) {
             statusEl.className = "alert alert-danger py-2 small";
-            statusEl.innerText = "❌ 辨識未成功：請確保條碼完整對齊在藍虛線內，且對焦清晰！";
+            statusEl.innerText = "❌ 辨識未成功：請確認條碼完全涵蓋在藍虛線內！";
           });
       }, 'image/jpeg', 0.95);
     }
@@ -308,15 +297,4 @@
 
     function onScanSuccess(decodedText) {
       if (window.opener) {
-        window.opener.postMessage({ type: 'BARCODE_SCANNED', barcode: decodedText }, '*');
-      }
-
-      if (html5QrCode && html5QrCode.isScanning) {
-        html5QrCode.stop().then(function() { window.close(); }).catch(function() { window.close(); });
-      } else {
-        window.close();
-      }
-    }
-  </script>
-</body>
-</html>
+        window.opener.postMessage({ type: 'BARCODE
