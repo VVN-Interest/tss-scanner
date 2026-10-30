@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>📷 TSS Code 128 畫面放大解碼掃描器</title>
+  <title>📷 TSS Code 128 微型 SN 專用掃描器</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
@@ -28,31 +28,43 @@
       transition: transform 0.2s ease-in-out;
     }
 
-    /* 畫面上方引導框 */
+    /* 🎯 專為微型 SN 設計的極窄扁長目標框 (45px 高度) */
     .scan-target-box {
       position: absolute;
       top: 50%;
-      left: 5%;
-      width: 90%;
-      height: 80px;
-      margin-top: -40px;
-      border: 2px dashed #0dcaf0;
+      left: 7.5%;
+      width: 85%;
+      height: 45px;
+      margin-top: -22px;
+      border: 2.5px dashed #0dcaf0;
       pointer-events: none;
       z-index: 10;
-      border-radius: 8px;
-      box-shadow: 0 0 10px rgba(13, 202, 240, 0.5);
+      border-radius: 6px;
+      box-shadow: 0 0 12px rgba(13, 202, 240, 0.7);
+    }
+
+    .scan-target-box::after {
+      content: "🎯 請將條碼精準對齊此窄框內";
+      position: absolute;
+      top: -22px;
+      left: 0;
+      width: 100%;
+      font-size: 12px;
+      color: #0dcaf0;
+      font-weight: bold;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.9);
     }
   </style>
 </head>
 <body class="p-3">
 
-  <h4 class="mt-2 text-primary fw-bold">📷 Code 128 畫面放大解碼器</h4>
-  <p class="text-warning small mb-2">💡 <b>LG 機身 SN 秘訣</b>：切換 <b>2.5x / 3.0x</b> 放大後，點擊<b>閃電解碼按鈕</b>！</p>
+  <h4 class="mt-2 text-primary fw-bold">📷 Code 128 微型條碼解碼器</h4>
+  <p class="text-warning small mb-2">💡 <b>LG 機身 SN 秘訣</b>：切換 <b>2.5x / 3.0x</b> 放大後，將條碼放進<b>藍色虛線窄框</b>內！</p>
 
   <!-- 狀態提示列 -->
   <div id="status-msg" class="alert alert-info py-2 small">⌛ 正在啟動相機...</div>
 
-  <!-- 相機預覽區與對焦框 -->
+  <!-- 相機預覽區與極窄目標框 -->
   <div id="preview-wrapper">
     <div class="scan-target-box"></div>
     <div id="reader-preview"></div>
@@ -69,13 +81,13 @@
     </div>
   </div>
 
-  <!-- 💡 隱藏的原生相機 input (作為備用) -->
+  <!-- 隱藏的原生相機 input (作為備用) -->
   <input type="file" id="qr-input-file" accept="image/*" capture="environment" style="display: none;" onchange="handleFileScan(this)">
 
   <!-- 操作按鈕區 -->
   <div class="d-grid gap-2 col-11 col-md-8 mx-auto mt-2">
-    <!-- 核心必殺技：截取目前畫面 (套用 2.5x/3.0x 放大) 並進行 Canvas 解碼 -->
-    <button class="btn btn-primary btn-lg fw-bold shadow" onclick="captureAndScanZoomedFrame()">⚡ 截取當前畫面解碼 (支援 2.5x / 3.0x 放大)</button>
+    <!-- 核心必殺技：截取藍色窄框區域進行精準放大解碼 -->
+    <button class="btn btn-primary btn-lg fw-bold shadow" onclick="captureAndScanZoomedFrame()">⚡ 截取窄框內容解碼</button>
 
     <div class="d-flex justify-content-center gap-2 mt-1">
       <button class="btn btn-outline-success btn-sm fw-bold" onclick="triggerPhotoScan()">📸 原生拍照備用</button>
@@ -136,7 +148,7 @@
         fps: 15,
         qrbox: function(viewfinderWidth, viewfinderHeight) {
           var boxWidth = Math.min(Math.floor(viewfinderWidth * 0.85), 400);
-          return { width: Math.max(boxWidth, 250), height: 120 };
+          return { width: Math.max(boxWidth, 250), height: 80 };
         },
         videoConstraints: { facingMode: "environment" }
       };
@@ -147,7 +159,7 @@
       html5QrCode.start(deviceId, getScanConfig(), onScanSuccess)
         .then(function() {
           statusEl.className = "alert alert-success py-2 small";
-          statusEl.innerText = "🟢 相機已就緒！微型 SN 請切換 2.5x/3.0x 後點擊「⚡ 截取當前畫面解碼」";
+          statusEl.innerText = "🟢 相機已就緒！請切換 2.5x/3.0x 將條碼對準藍色窄框，點擊「⚡ 截取窄框內容解碼」";
           applyCssZoom(currentZoomLevel);
         })
         .catch(function(err) { startScanWithFacingMode(); });
@@ -158,7 +170,7 @@
       html5QrCode.start({ facingMode: "environment" }, getScanConfig(), onScanSuccess)
         .then(function() {
           statusEl.className = "alert alert-success py-2 small";
-          statusEl.innerText = "🟢 後置鏡頭已開啟！微型 SN 請切換 2.5x/3.0x 後點擊「⚡ 截取當前畫面解碼」";
+          statusEl.innerText = "🟢 相機已就緒！請切換 2.5x/3.0x 將條碼對準藍色窄框，點擊「⚡ 截取窄框內容解碼」";
           applyCssZoom(currentZoomLevel);
         })
         .catch(function(err) { showCameraError(err); });
@@ -170,7 +182,6 @@
       statusEl.innerText = "❌ 相機開啟失敗：請確認 Safari 相機權限已開啟！";
     }
 
-    // 💡 切換預覽倍率
     function setZoom(zoomValue, btn) {
       currentZoomLevel = zoomValue;
       var btns = document.querySelectorAll('.btn-group .btn');
@@ -187,7 +198,7 @@
       }
     }
 
-    // 💡 核心魔術：將當前鏡頭畫面繪製到 Canvas 並進行 2.5x/3.0x 實質切片放大與解碼！
+    // 💡 核心演算：嚴格只截取藍色虛線窄框涵蓋的極淨區域 (中央 85% 寬度、12% 高度)
     function captureAndScanZoomedFrame() {
       var videoEl = document.querySelector('#reader-preview video');
       if (!videoEl || videoEl.readyState !== 4) {
@@ -197,21 +208,20 @@
 
       var statusEl = document.getElementById('status-msg');
       statusEl.className = "alert alert-warning py-2 small";
-      statusEl.innerText = "⚡ 正在繪製並分析 " + currentZoomLevel + "x 放大畫面...";
+      statusEl.innerText = "⚡ 正在分析藍色窄框內的條碼 (套用 " + currentZoomLevel + "x 放大)...";
 
       var vw = videoEl.videoWidth;
       var vh = videoEl.videoHeight;
 
-      // 1. 根據當前的 currentZoomLevel，計算影片中央要裁切的區域大小
-      var cropWidth = vw / currentZoomLevel;
-      var cropHeight = vh / currentZoomLevel;
+      // 嚴格對應 UI 窄框：寬度取 85%，高度鎖定在極窄的 12%
+      var cropWidth = (vw * 0.85) / currentZoomLevel;
+      var cropHeight = (vh * 0.12) / currentZoomLevel; 
       var cropX = (vw - cropWidth) / 2;
       var cropY = (vh - cropHeight) / 2;
 
-      // 2. 建立 Canvas，將裁切區域繪製並放大至 1200px 高清解析度
       var canvas = document.createElement('canvas');
       var targetWidth = 1200;
-      var targetHeight = Math.round(targetWidth * (cropHeight / cropWidth));
+      var targetHeight = Math.max(120, Math.round(targetWidth * (cropHeight / cropWidth)));
 
       canvas.width = targetWidth;
       canvas.height = targetHeight;
@@ -220,12 +230,11 @@
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
 
-      // 繪製：將影片中央 1/Zoom 區域繪製拉大滿滿至 Canvas
+      // 繪製：將影片中央窄框區域拉大繪製至 Canvas
       ctx.drawImage(videoEl, cropX, cropY, cropWidth, cropHeight, 0, 0, targetWidth, targetHeight);
 
-      // 3. 將 Canvas 轉為圖片檔案，送入解碼引擎！
       canvas.toBlob(function(blob) {
-        var zoomedFile = new File([blob], "zoomed_frame.jpg", { type: "image/jpeg" });
+        var zoomedFile = new File([blob], "narrow_zoomed_frame.jpg", { type: "image/jpeg" });
 
         html5QrCode.scanFile(zoomedFile, false)
           .then(function(decodedText) {
@@ -233,9 +242,9 @@
           })
           .catch(function(err) {
             statusEl.className = "alert alert-danger py-2 small";
-            statusEl.innerText = "❌ 放大辨識失敗：請確保條碼位於畫面正中央且清晰！";
+            statusEl.innerText = "❌ 辨識失敗：請確保 LG 條碼完全被包覆在藍色虛線窄框內！";
           });
-      }, 'image/jpeg', 0.92);
+      }, 'image/jpeg', 0.95);
     }
 
     function switchCamera() {
