@@ -34,13 +34,12 @@
   <!-- 相機即時預覽區 -->
   <div id="reader-preview"></div>
 
-  <!-- 💡 隱藏的原生相機拍攝 input -->
+  <!-- 隱藏的原生相機拍攝 input -->
   <input type="file" id="qr-input-file" accept="image/*" capture="environment" style="display: none;" onchange="handleFileScan(this)">
 
-  <!-- 💡 雙功能操作按鈕區 -->
+  <!-- 操作按鈕區 -->
   <div class="d-grid gap-2 col-11 col-md-8 mx-auto mt-2">
-    <!-- 終極必殺技：呼叫 iPad 原生 1200萬畫素高清相機拍攝 -->
-    <button class="btn btn-success btn-lg fw-bold shadow" onclick="triggerPhotoScan()">📸 拍照高清辨識 (奈米微型條碼專用)</button>
+    <button class="btn btn-success btn-lg fw-bold shadow" onclick="triggerPhotoScan()">📸 拍照高清辨識 (微型條碼專用)</button>
     
     <div class="d-flex justify-content-center gap-2 mt-1">
       <button id="btn-switch" class="btn btn-warning fw-bold px-3" onclick="switchCamera()">🔄 切換鏡頭</button>
@@ -148,30 +147,76 @@
       }
     }
 
-    // 💡 必殺技：點擊觸發 iPad 原生 1200 萬畫素相機拍攝
     function triggerPhotoScan() {
       document.getElementById('qr-input-file').click();
     }
 
-    // 💡 處理拍攝的高解析照片並進行全畫素解碼
+    // 💡 核心優化：處理上傳照片（先自動縮放瘦身，再送入解碼引擎）
     function handleFileScan(input) {
       if (!input.files || input.files.length === 0) return;
 
       var statusEl = document.getElementById('status-msg');
       statusEl.className = "alert alert-warning py-2 small";
-      statusEl.innerText = "⚡ 正在分析 1200 萬畫素超高解析照片...";
+      statusEl.innerText = "⚡ 正在快速優化影像並進行條碼辨識...";
 
       var file = input.files[0];
 
-      html5QrCode.scanFile(file, true)
-        .then(function(decodedText) {
-          onScanSuccess(decodedText);
-        })
-        .catch(function(err) {
-          statusEl.className = "alert alert-danger py-2 small";
-          statusEl.innerText = "❌ 辨識失敗，請重新拍攝並確保條碼清晰無晃動！";
-          alert("⚠️ 照片辨識失敗：請確保拍攝時光線充足、對焦清晰，且條碼沒有被閃光燈反光遮蓋！");
-        });
+      // 1. 先透過 Canvas 將巨大照片瘦身壓縮至 1200px 最佳解析度
+      resizeImage(file, 1200, function(resizedBlob) {
+        var resizedFile = new File([resizedBlob], "scan_optimized.jpg", { type: "image/jpeg" });
+
+        // 2. 將瘦身後的照片送入辨識引擎 (渲染改為 false 以提升效能)
+        html5QrCode.scanFile(resizedFile, false)
+          .then(function(decodedText) {
+            onScanSuccess(decodedText);
+          })
+          .catch(function(err) {
+            statusEl.className = "alert alert-danger py-2 small";
+            statusEl.innerText = "❌ 辨識失敗，請重新拍攝並確保條碼清晰！";
+            alert("⚠️ 照片辨識失敗：請確保拍攝時光線充足、對焦清晰，且條碼沒有被閃光燈反光遮蓋！");
+          });
+      });
+    }
+
+    // 💡 Canvas 影像高精細縮放/瘦身函式 (拯救瀏覽器主執行緒)
+    function resizeImage(file, maxDimension, callback) {
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        var img = new Image();
+        img.onload = function() {
+          var canvas = document.createElement('canvas');
+          var width = img.width;
+          var height = img.height;
+
+          // 計算等比例縮放尺寸
+          if (width > height) {
+            if (width > maxDimension) {
+              height = Math.round(height * (maxDimension / width));
+              width = maxDimension;
+            }
+          } else {
+            if (height > maxDimension) {
+              width = Math.round(width * (maxDimension / height));
+              height = maxDimension;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          var ctx = canvas.getContext('2d');
+          
+          // 使用高品質插值繪製
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(function(blob) {
+            callback(blob);
+          }, 'image/jpeg', 0.85);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
     }
 
     function onScanSuccess(decodedText) {
