@@ -9,7 +9,6 @@
   <style>
     body { background-color: #121212; color: #fff; text-align: center; font-family: "Microsoft JhengHei", "微軟正黑體", sans-serif; }
     
-    /* 預覽容器與紅色目標線 */
     #preview-wrapper {
       position: relative;
       width: 100%;
@@ -19,6 +18,7 @@
       border-radius: 12px;
       overflow: hidden;
       background-color: #000;
+      min-height: 250px;
     }
     
     #reader-preview video {
@@ -26,7 +26,6 @@
       height: auto !important;
     }
 
-    /* 🎯 畫面上方對準用的長橫線 (ROI 紅條目標線) */
     .scan-target-line {
       position: absolute;
       top: 50%;
@@ -61,7 +60,7 @@
   <p class="text-warning small mb-2">💡 拍照時請將<b>條碼放正中央，涵蓋在紅線框內</b>即可！</p>
 
   <!-- 狀態提示列 -->
-  <div id="status-msg" class="alert alert-info py-2 small">⌛ 正在啟動相機...</div>
+  <div id="status-msg" class="alert alert-info py-2 small">⌛ 正在準備開啟相機...</div>
 
   <!-- 相機預覽區與紅線圖層 -->
   <div id="preview-wrapper">
@@ -92,38 +91,43 @@
     };
 
     function initScanner() {
-      var config = {
-        formatsToSupport: [
-          Html5QrcodeSupportedFormats.CODE_128,
-          Html5QrcodeSupportedFormats.CODE_39
-        ],
-        experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true
-        }
-      };
-
-      html5QrCode = new Html5Qrcode("reader-preview", config);
-
-      Html5Qrcode.getCameras().then(function(devices) {
-        if (devices && devices.length > 0) {
-          cameraDevices = devices;
-          currentCameraIndex = devices.length - 1;
-
-          for (var i = 0; i < devices.length; i++) {
-            var label = devices[i].label.toLowerCase();
-            if (label.includes('back') || label.includes('rear') || label.includes('environment') || label.includes('主相機')) {
-              currentCameraIndex = i;
-              break;
-            }
+      try {
+        var config = {
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39
+          ],
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true
           }
+        };
 
-          startScanWithDeviceId(cameraDevices[currentCameraIndex].id);
-        } else {
+        html5QrCode = new Html5Qrcode("reader-preview", config);
+
+        Html5Qrcode.getCameras().then(function(devices) {
+          if (devices && devices.length > 0) {
+            cameraDevices = devices;
+            currentCameraIndex = devices.length - 1;
+
+            for (var i = 0; i < devices.length; i++) {
+              var label = devices[i].label.toLowerCase();
+              if (label.includes('back') || label.includes('rear') || label.includes('environment') || label.includes('主相機')) {
+                currentCameraIndex = i;
+                break;
+              }
+            }
+
+            startScanWithDeviceId(cameraDevices[currentCameraIndex].id);
+          } else {
+            startScanWithFacingMode();
+          }
+        }).catch(function(err) {
+          console.warn("無法取得裝置列表，改用內建對向模式啟動：", err);
           startScanWithFacingMode();
-        }
-      }).catch(function(err) {
-        startScanWithFacingMode();
-      });
+        });
+      } catch (e) {
+        showCameraError("套件初始化失敗：" + e.message);
+      }
     }
 
     function getScanConfig() {
@@ -144,7 +148,9 @@
           statusEl.className = "alert alert-success py-2 small";
           statusEl.innerText = "🟢 請將條碼對準紅線！微型貼紙請點下方「📸 拍照紅線裁切辨識」";
         })
-        .catch(function(err) { startScanWithFacingMode(); });
+        .catch(function(err) {
+          startScanWithFacingMode();
+        });
     }
 
     function startScanWithFacingMode() {
@@ -155,9 +161,15 @@
           statusEl.innerText = "🟢 請將條碼對準紅線！微型貼紙請點下方「📸 拍照紅線裁切辨識」";
         })
         .catch(function(err) {
-          statusEl.className = "alert alert-danger py-2 small";
-          statusEl.innerText = "❌ 無法開啟鏡頭：" + err;
+          showCameraError(err);
         });
+    }
+
+    function showCameraError(err) {
+      var statusEl = document.getElementById('status-msg');
+      statusEl.className = "alert alert-danger py-2 small";
+      statusEl.innerText = "❌ 相機啟用失敗！請確認 Safari 權限：設定 ➔ Safari ➔ 相機 ➔ 允許";
+      alert("⚠️ 無法開啟相機鏡頭！\n\n【檢查步驟】：\n1. 請確認 iPad 的 Safari 是否已允許「相機」存取權限。\n2. 若您依然需要辨識，可以直接點擊綠色/紅色「📸 拍照辨識」按鈕！\n\n錯誤資訊：" + err);
     }
 
     function switchCamera() {
@@ -170,6 +182,8 @@
         html5QrCode.stop().then(function() {
           currentCameraIndex = (currentCameraIndex + 1) % cameraDevices.length;
           startScanWithDeviceId(cameraDevices[currentCameraIndex].id);
+        }).catch(function(err) {
+          console.error("切換鏡頭失敗：", err);
         });
       }
     }
@@ -178,7 +192,6 @@
       document.getElementById('qr-input-file').click();
     }
 
-    // 💡 核心演算：接收照片後，只裁切紅線覆蓋的中央橫向區域（ROI）
     function handleFileScan(input) {
       if (!input.files || input.files.length === 0) return;
 
@@ -188,17 +201,14 @@
 
       var file = input.files[0];
 
-      // 進行 ROI 區域裁切
       cropToHorizontalLineROI(file, function(croppedBlob) {
         var croppedFile = new File([croppedBlob], "roi_strip.jpg", { type: "image/jpeg" });
 
-        // 送交辨識引擎
         html5QrCode.scanFile(croppedFile, false)
           .then(function(decodedText) {
             onScanSuccess(decodedText);
           })
           .catch(function(err) {
-            // 如果裁切區域沒辨識出來，自動降級嘗試全圖掃描作為備案
             html5QrCode.scanFile(file, false)
               .then(function(fullDecodedText) {
                 onScanSuccess(fullDecodedText);
@@ -212,7 +222,6 @@
       });
     }
 
-    // 💡 Canvas 核心裁切演算法：僅保留中央 20% 高度的極淨橫條照片
     function cropToHorizontalLineROI(file, callback) {
       var reader = new FileReader();
       reader.onload = function(e) {
@@ -221,8 +230,46 @@
           var canvas = document.createElement('canvas');
           var ctx = canvas.getContext('2d');
 
-          // 定義裁切區域 (X 取 90% 寬度, Y 只取中央 22% 高度)
           var cropWidth = Math.round(img.width * 0.90);
           var cropHeight = Math.round(img.height * 0.22);
           var cropX = Math.round((img.width - cropWidth) / 2);
-          var cropY = Math
+          var cropY = Math.round((img.height - cropHeight) / 2);
+
+          var outputWidth = cropWidth;
+          var outputHeight = cropHeight;
+          if (outputWidth > 1400) {
+            outputHeight = Math.round(outputHeight * (1400 / outputWidth));
+            outputWidth = 1400;
+          }
+
+          canvas.width = outputWidth;
+          canvas.height = outputHeight;
+
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+
+          ctx.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, outputWidth, outputHeight);
+
+          canvas.toBlob(function(blob) {
+            callback(blob);
+          }, 'image/jpeg', 0.92);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function onScanSuccess(decodedText) {
+      if (window.opener) {
+        window.opener.postMessage({ type: 'BARCODE_SCANNED', barcode: decodedText }, '*');
+      }
+
+      if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().then(function() { window.close(); }).catch(function() { window.close(); });
+      } else {
+        window.close();
+      }
+    }
+  </script>
+</body>
+</html>
