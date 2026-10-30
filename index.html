@@ -28,14 +28,14 @@
       transition: transform 0.2s ease-in-out;
     }
 
-    /* 🎯 藍色極窄目標對焦框 */
+    /* 🎯 藍色極窄虛線對焦框 (44px 高度) */
     .scan-target-box {
       position: absolute;
       top: 50%;
       left: 5%;
       width: 90%;
-      height: 40px;
-      margin-top: -20px;
+      height: 44px;
+      margin-top: -22px;
       border: 2.5px dashed #0dcaf0;
       pointer-events: none;
       z-index: 10;
@@ -44,7 +44,7 @@
     }
 
     .scan-target-box::after {
-      content: "🎯 請將微型 SN 條碼對準此窄框";
+      content: "🎯 請將條碼完整放進藍虛線內";
       position: absolute;
       top: -22px;
       left: 0;
@@ -76,7 +76,7 @@
 <body class="p-3">
 
   <h4 class="mt-2 text-primary fw-bold">📷 Code 128 高清顯形掃描器</h4>
-  <p class="text-warning small mb-2">💡 <b>LG 機身 SN 秘訣</b>：切換 <b>2.5x / 3.0x</b> 後對準窄框，點擊閃電解碼！</p>
+  <p class="text-warning small mb-2">💡 <b>LG 機身 SN 秘訣</b>：切換 <b>2.5x / 3.0x</b> 後對準藍虛線，點擊閃電解碼！</p>
 
   <!-- 狀態提示列 -->
   <div id="status-msg" class="alert alert-info py-2 small">⌛ 正在啟動相機...</div>
@@ -100,7 +100,7 @@
 
   <!-- 💡 畫面顯形區域：顯示 Canvas 實際切下來的畫面 -->
   <div id="debug-preview-container">
-    <div class="text-warning small mb-1 fw-bold">🖼️ 演算法當前捕捉之高對比切片畫面：</div>
+    <div class="text-warning small mb-1 fw-bold">🖼️ 演算法當前捕捉之藍虛線切片畫面：</div>
     <img id="debug-canvas-img" alt="切片預覽">
   </div>
 
@@ -109,7 +109,7 @@
 
   <!-- 操作按鈕區 -->
   <div class="d-grid gap-2 col-11 col-md-8 mx-auto mt-2">
-    <button class="btn btn-primary btn-lg fw-bold shadow" onclick="captureAndScanZoomedFrame()">⚡ 截取窄框內容解碼</button>
+    <button class="btn btn-primary btn-lg fw-bold shadow" onclick="captureAndScanZoomedFrame()">⚡ 截取藍虛線內容解碼</button>
 
     <div class="d-flex justify-content-center gap-2 mt-1">
       <button class="btn btn-outline-success btn-sm fw-bold" onclick="triggerPhotoScan()">📸 原生拍照備用</button>
@@ -181,7 +181,7 @@
       html5QrCode.start(deviceId, getScanConfig(), onScanSuccess)
         .then(function() {
           statusEl.className = "alert alert-success py-2 small";
-          statusEl.innerText = "🟢 相機已就緒！請切換 2.5x/3.0x 將條碼對準藍框後點擊解碼";
+          statusEl.innerText = "🟢 相機已就緒！請切換 2.5x/3.0x 將條碼對準藍虛線後點擊解碼";
           applyCssZoom(currentZoomLevel);
         })
         .catch(function(err) { startScanWithFacingMode(); });
@@ -192,7 +192,7 @@
       html5QrCode.start({ facingMode: "environment" }, getScanConfig(), onScanSuccess)
         .then(function() {
           statusEl.className = "alert alert-success py-2 small";
-          statusEl.innerText = "🟢 後置鏡頭已開啟！請切換 2.5x/3.0x 將條碼對準藍框後點擊解碼";
+          statusEl.innerText = "🟢 後置鏡頭已開啟！請切換 2.5x/3.0x 將條碼對準藍虛線後點擊解碼";
           applyCssZoom(currentZoomLevel);
         })
         .catch(function(err) { showCameraError(err); });
@@ -220,7 +220,7 @@
       }
     }
 
-    // 💡 核心必殺技：繪製高對比 Canvas 切片 + 顯形預覽 + Apple 原生條碼引擎雙重辨識
+    // 💡 核心優化：對應藍虛線框（44px 高、90% 寬）精準 DOM 比例繪製
     function captureAndScanZoomedFrame() {
       var videoEl = document.querySelector('#reader-preview video');
       var statusEl = document.getElementById('status-msg');
@@ -231,27 +231,32 @@
       }
 
       statusEl.className = "alert alert-warning py-2 small";
-      statusEl.innerText = "⚡ 正在生成高對比切片並調用硬體晶片辨識中...";
+      statusEl.innerText = "⚡ 正在生成精準藍虛線切片並解析中...";
 
       var vw = videoEl.videoWidth;
       var vh = videoEl.videoHeight;
+      var displayH = videoEl.clientHeight || 280; // 取得影片在 iPad 畫面的實際高度
 
-      // 1. 計算切片區域 (取中央 90% 寬度、14% 高度)
-      var cropWidth = (vw * 0.90) / currentZoomLevel;
-      var cropHeight = (vh * 0.14) / currentZoomLevel;
+      // 1. 動態計算藍虛線框 (44px 高度) 佔螢幕的真實比例
+      var boxHeightRatio = 44 / displayH;
+      var boxWidthRatio = 0.90;
+
+      // 2. 考慮放大倍率 calculate 裁切區域
+      var cropWidth = (vw * boxWidthRatio) / currentZoomLevel;
+      var cropHeight = (vh * boxHeightRatio) / currentZoomLevel;
       var cropX = (vw - cropWidth) / 2;
       var cropY = (vh - cropHeight) / 2;
 
       var canvas = document.createElement('canvas');
       var targetWidth = 1200;
-      var targetHeight = Math.max(140, Math.round(targetWidth * (cropHeight / cropWidth)));
+      var targetHeight = Math.max(120, Math.round(targetWidth * (cropHeight / cropWidth)));
 
       canvas.width = targetWidth;
       canvas.height = targetHeight;
 
       var ctx = canvas.getContext('2d');
       
-      // 2. 注入黑白高對比濾鏡，消除灰色外殼雜訊
+      // 3. 注入黑白高對比濾鏡，消除黑灰色外殼雜訊
       ctx.filter = 'grayscale(100%) contrast(220%)';
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
@@ -259,12 +264,12 @@
       // 繪製切片
       ctx.drawImage(videoEl, cropX, cropY, cropWidth, cropHeight, 0, 0, targetWidth, targetHeight);
 
-      // 3. 實體顯形：把 Canvas 畫面秀給使用者看，確認條碼有被切進去
-      var dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      // 4. 實體顯形：呈現藍虛線精準裁切畫面
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.95);
       document.getElementById('debug-canvas-img').src = dataUrl;
       document.getElementById('debug-preview-container').style.display = 'block';
 
-      // 4. 優先呼叫 Apple 原生相機晶片 API (BarcodeDetector)
+      // 5. 優先呼叫 Apple 原生相機晶片 API (BarcodeDetector)
       if ('BarcodeDetector' in window) {
         var barcodeDetector = new BarcodeDetector({ formats: ['code_128', 'code_39'] });
         barcodeDetector.detect(canvas)
@@ -283,7 +288,6 @@
       }
     }
 
-    // JS 套件備用備援
     function fallbackScanFile(canvas) {
       var statusEl = document.getElementById('status-msg');
       canvas.toBlob(function(blob) {
@@ -294,7 +298,7 @@
           })
           .catch(function(err) {
             statusEl.className = "alert alert-danger py-2 small";
-            statusEl.innerText = "❌ 辨識未成功：請檢查下方黃框影像，確保條碼完整且無晃動！";
+            statusEl.innerText = "❌ 辨識未成功：請查看下方黃框切片，確認條碼完整在虛線內！";
           });
       }, 'image/jpeg', 0.95);
     }
